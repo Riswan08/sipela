@@ -268,10 +268,15 @@ const DataView = {
           <ul class="syslist">${Store.systems.map(s => `<li class="${s.id === Store.current ? 'cur' : ''}">
             <span>${s.id === Store.current ? '▶ ' : ''}${esc(s.name)}</span>
             <span class="meta">${s.assets ?? 0} aset · ${s.lines ?? 0} saluran · ${fmt.date(s.updated)}</span>
-            ${s.id !== Store.current ? `<button class="btn sm" data-sys="${s.id}">Buka</button>` : ''}
-            <button class="btn sm danger" data-sysdel="${s.id}">✕</button></li>`).join('')}</ul>
+            ${s.id !== Store.current ? `<button class="btn sm" data-sys="${s.id}">Buka</button>` : '<span class="muted small">aktif</span>'}</li>`).join('')}</ul>
           <button class="btn" id="bSysNew">＋ Sistem baru</button>
           <p class="hint">Tiap sistem (mis. Buano, Kairatu, Masohi) disimpan terpisah. Pindah sistem lewat menu di kiri atas.</p>
+          <h4>Hapus satu sistem</h4>
+          <div class="toolbar wrap" style="padding:0">
+            <label class="f"><span>Pilih sistem yang dihapus</span><select id="sysDelSel">${Store.systems.map(s => `<option value="${s.id}">${esc(s.name)} (${s.assets ?? 0} aset)</option>`).join('')}</select></label>
+            <button class="btn danger" id="bSysDel">🗑 Hapus sistem ini</button>
+          </div>
+          <p class="hint">Hanya sistem yang dipilih yang dihapus; sistem lain tidak tersentuh. Tidak bisa di-undo — unduh backup dulu bila ragu.</p>
           <h3 class="mt">Sistem aktif</h3>
           <label class="f"><span>Nama sistem</span><input id="pName" value="${esc(d.meta.name)}"></label>
           <p class="muted small">Dibuat ${fmt.date(d.meta.created)} · terakhir disimpan ${fmt.date(d.meta.updated)} · ${d.assets.length} aset, ${d.lines.length} saluran.
@@ -302,8 +307,9 @@ const DataView = {
 
           <h3 class="mt">Lainnya</h3>
           <div class="btnrow">
-            <button class="btn danger" id="bClear">Kosongkan sistem ini</button>
+            <button class="btn danger" id="bClear">Kosongkan isi sistem "${esc(d.meta.name)}"</button>
           </div>
+          <p class="hint">Menghapus aset, saluran & pelanggan di sistem aktif saja (sistemnya tetap ada, bisa di-undo).</p>
         </section>
 
         <section class="card">
@@ -333,17 +339,21 @@ const DataView = {
     el.querySelector('#pName').onchange = e => Store.mutate(() => { Store.data.meta.name = e.target.value.trim() || 'Sistem'; }, 'meta');
     el.querySelector('#bSysNew').onclick = () => App.newSystem();
     el.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => Store.switchTo(b.dataset.sys));
-    el.querySelectorAll('[data-sysdel]').forEach(b => b.onclick = () => {
-      const s = Store.system(b.dataset.sysdel);
-      if (confirm(`Hapus sistem "${s.name}" (${s.assets} aset) secara permanen? Tidak bisa di-undo.`)) Store.deleteSystem(s.id);
-    });
+    el.querySelector('#bSysDel').onclick = () => {
+      const s = Store.system(el.querySelector('#sysDelSel').value);
+      if (!s) return;
+      const typed = prompt(`Hapus sistem "${s.name}" (${s.assets ?? 0} aset) secara PERMANEN?\nKetik nama sistemnya untuk konfirmasi:`);
+      if (typed == null) return;
+      if (typed.trim().toLowerCase() !== s.name.trim().toLowerCase()) return App.toast('Nama tidak cocok — sistem tidak dihapus');
+      Store.deleteSystem(s.id).then(() => App.toast(`Sistem "${s.name}" dihapus`));
+    };
     el.querySelector('#bJson').onclick = () => IO.exportJson();
     el.querySelector('#bTpl').onclick = () => IO.templateExcel();
     el.querySelector('#bXlsx').onclick = () => IO.exportExcel();
     el.querySelector('#bKml').onclick = () => IO.exportKml();
     el.querySelector('#bGeo').onclick = () => IO.exportGeoJSON();
     el.querySelector('#bClear').onclick = () => {
-      if (!confirm('Hapus SEMUA aset, saluran & pelanggan di sistem ini? (masih bisa di-undo selama halaman belum ditutup)')) return;
+      if (!confirm(`Kosongkan isi sistem "${Store.data.meta.name}" saja (aset, saluran & pelanggan)? Sistem lain tidak terpengaruh. Masih bisa di-undo selama halaman belum ditutup.`)) return;
       Store.mutate(d => { d.assets = []; d.lines = []; d.customers = []; }, 'clear');
     };
     el.querySelectorAll('input[type=file][data-imp]').forEach(inp => inp.onchange = async () => {
