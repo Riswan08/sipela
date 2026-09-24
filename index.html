@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SIPERSIS — Perencanaan Sistem Distribusi</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="bolt">⚡</span><b>SIPERSIS</b><small id="projName"></small></div>
+    <nav id="nav">
+      <button data-view="map" class="active">🗺 Peta</button>
+      <button data-view="sld">⎓ SLD</button>
+      <button data-view="assets">▦ Aset</button>
+      <button data-view="lines">〰 Saluran</button>
+      <button data-view="analysis">📊 Analisis</button>
+      <button data-view="data">💾 Data</button>
+    </nav>
+    <div class="top-actions">
+      <span id="saveState" class="muted"></span>
+      <button id="btnUndo" class="btn sm" title="Undo (Ctrl+Z)">↶ Undo</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-map" class="view active">
+      <div id="map"></div>
+      <aside id="mapPanel" class="panel">
+        <div class="tools">
+          <div class="seg" id="modeSeg">
+            <button data-mode="select">🖱 Pilih</button>
+            <button data-mode="asset">➕ Aset</button>
+            <button data-mode="line">〰 Saluran</button>
+            <button data-mode="measure">📏 Ukur</button>
+          </div>
+          <div class="row">
+            <input id="mapSearch" list="dlAssets" placeholder="Cari kode aset…" autocomplete="off">
+            <button class="btn" id="btnGps" title="Lokasi saya">📍</button>
+          </div>
+          <div id="modeOpts"></div>
+        </div>
+        <div id="editor"></div>
+      </aside>
+    </section>
+    <section id="view-sld" class="view"></section>
+    <section id="view-assets" class="view"></section>
+    <section id="view-lines" class="view"></section>
+    <section id="view-analysis" class="view scroll"></section>
+    <section id="view-data" class="view scroll"></section>
+  </main>
+
+  <datalist id="dlAssets"></datalist>
+  <datalist id="dlFeeders"></datalist>
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+  <script src="js/store.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/sld.js"></script>
+  <script src="js/io.js"></script>
+  <script src="js/views.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
