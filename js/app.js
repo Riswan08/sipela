@@ -45,9 +45,13 @@ const SldView = {
     if (!svg) { wrap.innerHTML = '<p class="pad">Tidak dapat menggambar SLD.</p>'; return; }
     SLD.mount(wrap, svg);
     const reach = SLD.tree ? SLD.tree.nodes.size : 0, total = Store.data.assets.filter(a => a.sub !== 'TR').length;
+    if (SLD.tree?.missing) document.getElementById('sldInfo').innerHTML = `<span class="muted">${SLD.tree.missing} aset terhubung tetapi tidak tergambar karena tidak berada di jalur penyulangnya sendiri (label penyulang GIS berbeda). Matikan "Satu keluaran per penyulang" untuk melihat semuanya.</span>`;
     const root = Store.asset(this.rootId);
     if (ASSET_TYPES[root?.type]?.source && total > 5 && reach < total * 0.5) {
-      document.getElementById('sldInfo').innerHTML = `<span class="warn">⚠ ${esc(root.code)} hanya menjangkau ${reach} dari ${total} aset.</span> Kemungkinan pembangkit belum tersambung ke tiang TM jaringan.
+      const hasOut = SLD.tree.root.children.length > 0;
+      document.getElementById('sldInfo').innerHTML = hasOut
+        ? `<span class="muted">${esc(root.code)} menjangkau ${reach} dari ${total} aset. Sisanya berada di kelompok jaringan yang terputus (celah data GIS / tiang belum terdata) — lihat ruas merah putus-putus di peta, sambungkan manual bila memang satu jalur.</span>`
+        : `<span class="warn">⚠ ${esc(root.code)} hanya menjangkau ${reach} dari ${total} aset.</span> Kemungkinan pembangkit belum tersambung ke tiang TM jaringan.
         <button class="btn sm primary" onclick="App.focusAsset('${root.id}'); setTimeout(() => MapView.autoConnect('${root.id}'), 300)">⚡ Sambungkan ke jaringan terdekat</button>`;
     }
   },

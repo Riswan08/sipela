@@ -72,7 +72,8 @@ const EquipImport = {
     for (const a of Store.data.assets) {
       if (a.type !== 'TIANG' || a.sub === 'TR') continue;
       if (feeder && a.feeder && a.feeder !== feeder) continue;
-      if (Math.abs(a.lat - p[0]) > 0.02 || Math.abs(a.lng - p[1]) > 0.02) continue;
+      const box = maxM / 100000; // ≈ derajat; saring kasar sebelum hitung jarak
+      if (Math.abs(a.lat - p[0]) > box || Math.abs(a.lng - p[1]) > box) continue;
       const d = Geo.dist(p, [a.lat, a.lng]);
       if (d <= maxM && (!best || d < best.d)) best = { a, d };
     }
@@ -115,22 +116,32 @@ const EquipImport = {
         if (ex) { Object.assign(ex, props, { lat: ex.lat, lng: ex.lng }); rep.upd++; continue; }
         // CB penyulang: dipasang di tiang TM pertama penyulang itu dari GI, lalu GI disambung ke sana
         if (r.sub === 'cb' && gi) {
-          const near = this.nearestPole(p, o.maxLinkM, feeder) || this.nearestPole(p, o.maxLinkM);
-          if (!near) { rep.warn.push(`${r.name}: tidak ada tiang TM penyulang ${feeder} dalam ${o.maxLinkM} m dari GI`); continue; }
-          Object.assign(near.a, props, { type: 'REC' });
-          if (!Store.linesOf(gi.id).some(l => l.from === near.a.id || l.to === near.a.id))
-            Store._newLine({ from: gi.id, to: near.a.id, level: 'JTM', conductor: 'XLPE-240', feeder, note: `Outgoing ${r.name} dari GI` });
-          rep.conv++; rep.link++;
+          const near = this.nearestPole(p, o.maxLinkM, feeder);
+          if (near) {
+            Object.assign(near.a, props, { type: 'REC' });
+            if (!Store.linesOf(gi.id).some(l => l.from === near.a.id || l.to === near.a.id))
+              Store._newLine({ from: gi.id, to: near.a.id, level: 'JTM', conductor: 'XLPE-240', feeder, note: `Outgoing ${r.name} dari GI` });
+            rep.conv++; rep.link++;
+          } else {
+            // tiang penyulang ini tidak ada di dekat GI: CB dibuat di sisi GI, disambung ke jalur penyulang terdekat dengan ruas bertanda
+            const k = d.assets.filter(a => a.sub === 'cb').length;
+            const cb = Store._newAsset({ ...props, type: 'REC', lat: +(gi.lat + 0.0002 * (k + 1)).toFixed(7), lng: +(gi.lng + 0.0002).toFixed(7) });
+            Store._newLine({ from: gi.id, to: cb.id, level: 'JTM', conductor: 'XLPE-240', feeder, note: `Outgoing ${r.name} dari GI` });
+            const far = this.nearestPole(p, 15000, feeder);
+            if (far) { Store._newLine({ from: cb.id, to: far.a.id, level: 'JTM', conductor: Store.linesOf(far.a.id)[0]?.conductor || 'AAAC-150', feeder, auto: true, gap: true, note: `Jalur ${feeder} dari GI ke ${far.a.code} belum terdata di GIS (${Math.round(far.d)} m garis lurus) — cek lapangan` }); rep.warn.push(`${r.name}: tiang TM ${feeder} terdekat ${Math.round(far.d)} m dari GI — disambung dengan ruas bertanda merah`); }
+            else rep.warn.push(`${r.name}: tidak ada tiang TM penyulang ${feeder} — CB dibuat di GI, belum tersambung ke jalur`);
+            rep.add++;
+          }
           continue;
         }
-        const near = this.nearestPole(p, o.snapM, feeder) || this.nearestPole(p, o.snapM);
+        const near = this.nearestPole(p, o.snapM, feeder) || (!feeder ? this.nearestPole(p, o.snapM) : null);
         if (near && r.type !== 'GH') {
           // ubah tiang menjadi peralatan (sambungan tetap)
           Object.assign(near.a, props, { type: r.type });
           rep.conv++;
         } else {
           const a = Store._newAsset({ ...props, type: r.type, lat: r.lat, lng: r.lng });
-          const far = this.nearestPole(p, o.maxLinkM, feeder) || this.nearestPole(p, o.maxLinkM);
+          const far = this.nearestPole(p, o.maxLinkM, feeder) || (!feeder ? this.nearestPole(p, o.maxLinkM) : null);
           if (far) { Store._newLine({ from: far.a.id, to: a.id, level: 'JTM', conductor: Store.linesOf(far.a.id)[0]?.conductor || 'AAAC-70', feeder, auto: true, note: `Sambungan otomatis ke ${r.name} (${Math.round(far.d)} m)` }); rep.link++; }
           else { rep.alone++; rep.warn.push(`${r.name}: tidak ada tiang TM dalam ${o.maxLinkM} m — belum tersambung`); }
           rep.add++;
@@ -154,11 +165,11 @@ const EquipImport = {
       note: [pd.zona && pd.section ? `${pd.zona} / ${pd.section}` : '', pd.nCust != null ? `${fmt.n(pd.nCust, 0)} pelanggan hilir` : '', pd.parent ? 'cabang dari ' + pd.parent : ''].filter(Boolean).join(' · ') };
     let result = null;
     Store.mutate(d => {
-      const near = this.nearestPole(p, o.snapM, pd.feeder) || this.nearestPole(p, o.snapM);
+      const near = this.nearestPole(p, o.snapM, pd.feeder) || (!pd.feeder ? this.nearestPole(p, o.snapM) : null);
       if (near && pd.type !== 'GH' && pd.type !== 'GI') { Object.assign(near.a, props, { type: pd.type }); result = { a: near.a, how: `dipasang di tiang ${near.a.code}` }; }
       else {
         const a = Store._newAsset({ ...props, type: pd.type, lat: p[0], lng: p[1] });
-        const far = this.nearestPole(p, o.maxLinkM, pd.feeder) || this.nearestPole(p, o.maxLinkM);
+        const far = this.nearestPole(p, o.maxLinkM, pd.feeder) || (!pd.feeder ? this.nearestPole(p, o.maxLinkM) : null);
         if (far) { Store._newLine({ from: far.a.id, to: a.id, level: 'JTM', conductor: Store.linesOf(far.a.id)[0]?.conductor || 'AAAC-70', feeder: pd.feeder, auto: true, note: `Sambungan otomatis (${Math.round(far.d)} m)` }); result = { a, how: `disambung ke ${far.a.code} (${Math.round(far.d)} m)` }; }
         else result = { a, how: 'belum tersambung — tidak ada tiang TM dalam ' + o.maxLinkM + ' m' };
       }

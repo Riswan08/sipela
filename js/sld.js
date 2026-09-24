@@ -11,7 +11,7 @@ const SLD = {
   build(rootId, opt) {
     const t = Net.tree(rootId, { respectOpen: opt.stopOpen, jtmOnly: !opt.showJTR });
     if (!t.root) return null;
-    if (opt.perFeeder && ASSET_TYPES[t.root.asset.type]?.source) this.splitFeeders(t);
+    if (opt.perFeeder && ASSET_TYPES[t.root.asset.type]?.source) this.splitFeeders(t, opt);
     if (opt.collapse) this.collapse(t);
     // tinggi subtree (untuk menentukan trunk) — iteratif pasca-urut
     for (let i = t.order.length - 1; i >= 0; i--) {
@@ -50,33 +50,60 @@ const SLD = {
     return t;
   },
 
-  // Sumber (PLTD/GI) digambar dengan satu keluaran per penyulang: simpul pertama tiap penyulang
-  // dipindahkan langsung ke bawah sumber (panjang = jarak jaringan dari sumber).
-  splitFeeders(t) {
-    const root = t.root, heads = new Map();
+  // Sumber (PLTD/GI): satu keluaran per penyulang. Tiap penyulang = pohon tersendiri yang hanya
+  // menelusuri saluran berlabel penyulang itu (saluran tanpa label ikut), mulai dari simpul
+  // penyulang terdekat dari sumber; sambungan sumber → simpul awal digambar sebagai satu ruas.
+  splitFeeders(t, opt) {
+    const root = t.root;
+    const base = { respectOpen: opt.stopOpen, jtmOnly: !opt.showJTR };
+    const heads = new Map();
     for (const n of t.order) {
       if (n === root) continue;
       const f = n.asset.feeder; if (!f) continue;
-      const p = t.nodes.get(n.parent);
-      const pf = p === root ? null : p.asset.feeder;
-      if (pf === f) continue;                 // masih di penyulang yang sama
-      if (heads.has(f)) continue;             // penyulang ini sudah punya keluaran
-      heads.set(f, n);
+      const cur = heads.get(f);
+      // CB/outgoing penyulang selalu menjadi titik awal; selain itu simpul terdekat dari sumber
+      if (!cur || (n.asset.sub === 'cb' && cur.asset.sub !== 'cb') || (n.asset.sub === 'cb') === (cur.asset.sub === 'cb') && n.dist < cur.dist) heads.set(f, n);
     }
-    for (const [f, n] of heads) {
-      const p = t.nodes.get(n.parent);
-      if (p === root) continue;
-      p.children = p.children.filter(c => c !== n);
-      const via = [];
-      for (let q = p; q && q !== root; q = t.nodes.get(q.parent)) via.unshift(q);
-      n.parent = root.id;
-      n.line = { id: 'f' + n.id, level: 'JTM', conductor: n.line.conductor, feeder: f, lengthM: n.dist, spans: via.length + 1,
-        note: via.length ? `via ${via[0].asset.code}` : '' };
-      root.children.push(n);
+    const nodes = new Map([[root.id, { ...root, children: [] }]]);
+    const R = nodes.get(root.id);
+    const used = new Set([root.id]);
+    const ordered = [...heads.entries()].sort((a, b) => a[1].dist - b[1].dist);
+    for (const [f, h] of ordered) {
+      if (used.has(h.id)) continue;
+      // simpul di jalur sumber→awal penyulang tidak boleh dimasuki lagi
+      const blocked = new Set(used);
+      for (let q = t.nodes.get(h.parent); q && q !== root; q = t.nodes.get(q.parent)) blocked.add(q.id);
+      const sub = Net.tree(h.id, { ...base, feederOnly: f, blocked });
+      if (!sub.root) continue;
+      for (const n of sub.order) {
+        if (n !== sub.root && used.has(n.id)) continue;
+        const m = { id: n.id, asset: n.asset, dist: h.dist + n.dist, parent: n === sub.root ? root.id : n.parent, line: n.line, children: [] };
+        if (n === sub.root) {
+          const direct = h.parent === root.id;
+          const via = []; for (let q = t.nodes.get(h.parent); q && q !== root; q = t.nodes.get(q.parent)) via.unshift(q);
+          m.line = direct ? h.line : { id: 'f' + h.id, level: 'JTM', conductor: h.line.conductor, feeder: f, lengthM: h.dist, spans: via.length + 1, note: `via ${via[0].asset.code}` };
+        }
+        nodes.set(n.id, m); used.add(n.id);
+      }
     }
-    const order = [], st = [root];
+    // susun anak (hanya simpul yang orang tuanya ikut terpakai)
+    for (const n of nodes.values()) {
+      if (n.id === root.id) continue;
+      const p = nodes.get(n.parent);
+      if (p) p.children.push(n); else nodes.delete(n.id);
+    }
+    // tie: saluran antar simpul tergambar yang bukan bagian pohon, atau ke luar pohon
+    const treeLines = new Set(); nodes.forEach(n => n.line && treeLines.add(n.line.id));
+    const ties = [];
+    Store.data.lines.forEach(l => {
+      if (treeLines.has(l.id) || (base.jtmOnly && l.level === 'JTR')) return;
+      const inF = nodes.has(l.from), inT = nodes.has(l.to);
+      if (inF || inT) ties.push({ line: l, a: inF ? l.from : l.to, b: inF ? l.to : l.from, bothIn: inF && inT });
+    });
+    const order = [], st = [R];
     while (st.length) { const n = st.pop(); order.push(n); for (let i = n.children.length - 1; i >= 0; i--) st.push(n.children[i]); }
-    t.order = order;
+    t.root = R; t.nodes = nodes; t.ties = ties; t.order = order;
+    t.missing = [...Net.tree(root.id, base).nodes.keys()].filter(id => !nodes.has(id)).length;
   },
 
   // gabungkan rangkaian tiang lurus (tiang dengan satu cabang lanjut) menjadi satu ruas

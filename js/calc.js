@@ -44,6 +44,7 @@ const Net = {
     Store.data.lines.forEach(l => {
       if (!g.has(l.from) || !g.has(l.to) || l.from === l.to) return;
       if (opts.jtmOnly && l.level === 'JTR') return;
+      if (opts.feederOnly && l.feeder && l.feeder !== opts.feederOnly) return; // hanya jalur penyulang tertentu
       const len = Store.lineLength(l);
       g.get(l.from).push({ to: l.to, line: l, len });
       g.get(l.to).push({ to: l.from, line: l, len });
@@ -63,6 +64,7 @@ const Net = {
       done.add(u);
       if (opts.respectOpen && u !== src && this.isOpen(Store.asset(u))) continue;
       for (const e of g.get(u) || []) {
+        if (opts.blocked && opts.blocked.has(e.to)) continue;
         const nd = d + e.len;
         if (nd < (dist.get(e.to) ?? Infinity)) {
           dist.set(e.to, nd);

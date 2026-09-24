@@ -164,7 +164,8 @@ const GisImport = {
 
     Store.mutateNoUndo(d => {
       if (o.replace) {
-        const gone = new Set(d.assets.filter(a => a.src === 'gis').map(a => a.id));
+        const gone = new Set(d.assets.filter(a => a.src === 'gis' || a.src === 'equip').map(a => a.id));
+        d.pending = [];
         d.assets = d.assets.filter(a => !gone.has(a.id));
         d.lines = d.lines.filter(l => !gone.has(l.from) && !gone.has(l.to));
         d.customers = [];
@@ -186,10 +187,16 @@ const GisImport = {
       }
       rep.tm = tm.length;
 
-      /* 2. rekonstruksi JTM dengan MST */
+      /* 2. rekonstruksi JTM dengan MST — PER PENYULANG, agar penyulang yang berjalan sejajar
+            di koridor yang sama tidak saling tersambung dan tiap penyulang menjadi satu jalur */
       rep.jtm = 0; rep.gap = 0; rep.jtmM = 0;
       rep.split = 0;
-      for (const [i, j] of this.mst(tm.map(t => t.p))) {
+      const groups = new Map();
+      tm.forEach((t, idx) => { const f = t.a.feeder || ''; (groups.get(f) || groups.set(f, []).get(f)).push(idx); });
+      const edges = [];
+      for (const idxs of groups.values()) for (const [gi, gj] of this.mst(idxs.map(k => tm[k].p))) edges.push([idxs[gi], idxs[gj]]);
+      rep.split -= groups.size - 1; // pemisahan antar penyulang memang disengaja, jangan dihitung
+      for (const [i, j] of edges) {
         const A = tm[i].a, B = tm[j].a, len = Geo.dist(tm[i].p, tm[j].p);
         if (len > o.maxEdgeM) { rep.split++; continue; } // terlalu jauh: biarkan terpisah, jangan dipaksa tersambung
         const gap = len > o.gapM;
@@ -228,8 +235,9 @@ const GisImport = {
           tahun: String(t.TH_BUAT || ''), phase: t.FASA ? String(t.FASA) : '',
         };
         // gardu portal berada di tiang TM: pakai tiang TM terdekat bila dekat
+        // gardu hanya disambung ke tiang TM penyulangnya sendiri (jangan menyeberang ke penyulang lain)
         let near = null;
-        for (const tp of tm) { const dd = Geo.dist(pos, tp.p); if (!near || dd < near.d) near = { t: tp, d: dd }; }
+        for (const tp of tm) { if (feeder && tp.a.feeder && tp.a.feeder !== feeder) continue; const dd = Geo.dist(pos, tp.p); if (!near || dd < near.d) near = { t: tp, d: dd }; }
         let a;
         if (near && near.d <= o.snapGardu && near.t.a.type === 'TIANG') {
           a = near.t.a;
@@ -300,10 +308,11 @@ const GisImport = {
 
     const hasSrc = Store.data.assets.some(a => ASSET_TYPES[a.type]?.source);
     return [
-      `Tiang TM: ${rep.tm}${rep.dup ? ` (${rep.dup} duplikat digabung)` : ''} → ${rep.jtm} ruas JTM direkonstruksi, total ${fmt.m(rep.jtmM)}`,
+      `Tiang TM: ${rep.tm}${rep.dup ? ` (${rep.dup} duplikat digabung)` : ''} → ${rep.jtm} ruas JTM direkonstruksi per penyulang, total ${fmt.m(rep.jtmM)}`,
+      o.replace ? 'Hasil import GIS & Data Aset sebelumnya di sistem ini diganti — import Data Aset (peralatan) lagi bila perlu' : '',
       condNote.length ? `Penghantar JTM per penyulang (dari sheet JTM GIS, dipakai yang dominan): ${condNote.join(' · ')}` : `Sheet JTM tidak memuat ukuran penghantar — dipakai default ${o.tmCond}`,
       rep.gap ? `⚠ ${rep.gap} ruas JTM lebih dari ${o.gapM} m (garis putus-putus merah di peta) — kemungkinan ada tiang yang belum terdata; cek lapangan` : 'Tidak ada celah JTM yang mencurigakan',
-      rep.split ? `⚠ Jaringan JTM terpisah menjadi ${rep.split + 1} kelompok (jarak antar kelompok > ${o.maxEdgeM} m) — sambungkan manual bila memang satu penyulang` : '',
+      rep.split > 0 ? `⚠ Ada ${rep.split} pemisahan tambahan di dalam penyulang (jarak antar tiang > ${o.maxEdgeM} m) — sambungkan manual bila memang satu jalur` : '',
       rep.gdFar ? `⚠ ${rep.gdFar} gardu tidak disambungkan karena tiang TM terdekat > ${o.maxEdgeM} m — kemungkinan tiang TM-nya belum terdata` : '',
       `Gardu distribusi: ${rep.gd}` + (rep.gdEst.length ? ` (posisi ${rep.gdEst.length} gardu diestimasi dari tiang TR/pelanggan)` : ''),
       rep.noKva ? `⚠ ${rep.noKva} gardu belum ada kapasitas kVA di GIS — isi di peta agar % pembebanan trafo bisa dihitung` : '',

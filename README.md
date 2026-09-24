@@ -51,6 +51,8 @@ Daftar **ULP → Sistem → Penyulang** UP3 Masohi tertanam di `js/sistem.js` (s
 
 Jenis penghantar JTM diambil dari sheet JTM (kolom `UKURAN_PENGHANTAR_TM`, berupa kode angka): wizard menampilkan pemetaan kode → penghantar (default 1=35, 2=70, 3=150, 4=240 mm²; kode lain Anda tetapkan, pilihan disimpan), dan tiap penyulang memakai penghantar yang dominan menurut panjang di GIS karena JTM di GIS tidak punya geometri per ruas.
 
+Rekonstruksi JTM dilakukan **per penyulang** (MST hanya antar tiang berlabel penyulang yang sama), sehingga penyulang yang berjalan sejajar di koridor yang sama tidak saling tersambung dan tiap penyulang menjadi satu jalur di SLD. Gardu dan peralatan hanya disambungkan ke tiang penyulangnya sendiri.
+
 Pengaman rekonstruksi: tiang dengan kolom PENYULANG kosong mengikuti penyulang tiang terdekat (≤ 300 m); ruas JTM/JTR dan sambungan gardu yang lebih jauh dari batas (default 1.500 m) tidak dibuat, sehingga jaringan boleh terpecah beberapa kelompok daripada tersambung palsu puluhan km.
 
 ## Import peralatan (Data Aset: CB, LBS, Recloser, PMCB, FCO, GH)
