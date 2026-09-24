@@ -218,12 +218,12 @@ const MapView = {
     if ((this.mode === 'line' && this.draft) || (this.mode === 'measure' && this.measurePts.length)) this.renderDraft();
   },
 
-  placeAsset(p) {
+  placeAsset(p, extra = {}) {
     const o = this.opts;
     const prevId = o.autoConnect ? this.lastAssetId : null;
     const a = Store.mutate(() => {
       const prev = prevId && Store.asset(prevId);
-      const x = Store._newAsset({ type: o.type, lat: p[0], lng: p[1], feeder: o.feeder || prev?.feeder || '' });
+      const x = Store._newAsset({ type: o.type, lat: p[0], lng: p[1], feeder: o.feeder || prev?.feeder || '', ...extra });
       if (prev) Store._newLine({ from: prev.id, to: x.id, conductor: o.conductor, feeder: x.feeder, level: o.level });
       return x;
     }, 'asset');
@@ -331,7 +331,16 @@ const MapView = {
         <p class="hint">Klik peta untuk menaruh aset. Klik aset lain untuk menjadikannya titik sambung.</p>
         <label class="chk"><input type="checkbox" data-o="autoConnect" ${o.autoConnect ? 'checked' : ''}> Sambung otomatis dari aset terakhir${o.autoConnect && Store.asset(this.lastAssetId) ? ` (<b>${esc(Store.asset(this.lastAssetId).code)}</b>)` : ''}</label>
         ${o.autoConnect ? common : `<label class="f"><span>Penyulang</span><input data-o="feeder" list="dlFeeders" value="${esc(o.feeder)}"></label>`}
-        <button class="btn primary block" id="btnGpsAdd">📍 Tambah aset di posisi GPS saya</button>`;
+        <button class="btn primary block" id="btnGpsAdd">📍 Tambah aset di posisi GPS saya</button>
+        <details class="coord" ${this.coordOpen ? 'open' : ''}><summary>Tambah lewat titik koordinat</summary>
+          <label class="f"><span>Koordinat (lat, lng)</span><input id="coordIn" placeholder="-3.0110318, 127.9506499" autocomplete="off"></label>
+          <div class="grid2">
+            <label class="f"><span>Kode</span><input id="coordCode" placeholder="mis. PLTD-BUANO"></label>
+            <label class="f"><span>Nama</span><input id="coordName" placeholder="mis. PLTD Buano"></label>
+          </div>
+          <p class="hint">Bisa tempel dari Google Maps/GIS: <code>-3,0110 127,9506</code>, <code>-3.0110, 127.9506</code>, atau DMS <code>3°0'39.7"S 127°57'2.3"E</code>.</p>
+          <button class="btn primary block" id="btnCoordAdd">Tambah ${esc(ASSET_TYPES[o.type].label)} di koordinat ini</button>
+        </details>`;
     } else if (this.mode === 'line') {
       h = `<p class="hint">${this.draft
           ? `Dari <b>${esc(Store.asset(this.draft.from)?.code)}</b> — klik peta untuk titik belok, klik aset tujuan untuk selesai. Panjang: <b id="draftLen">-</b><br><kbd>Enter</kbd> = akhiri dengan tiang baru, <kbd>Esc</kbd> = batal.`
@@ -348,6 +357,16 @@ const MapView = {
     });
     el.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { this.opts.type = b.dataset.type; this.renderModeOpts(); });
     const g = el.querySelector('#btnGpsAdd'); if (g) g.onclick = () => this.locate(true);
+    const det = el.querySelector('details.coord'); if (det) det.ontoggle = () => { this.coordOpen = det.open; };
+    const c = el.querySelector('#btnCoordAdd');
+    if (c) c.onclick = () => {
+      const p = parseCoord(el.querySelector('#coordIn').value);
+      if (!p) return App.toast('Koordinat tidak dikenali — pakai format "lat, lng"');
+      const code = el.querySelector('#coordCode').value.trim(), name = el.querySelector('#coordName').value.trim();
+      if (code && Store.byCode(code)) return App.toast(`Kode ${code} sudah dipakai aset lain`);
+      this.placeAsset(p, { code, name });
+      this.map.setView(p, Math.max(this.map.getZoom(), 16));
+    };
   },
 
   renderEditor() {
@@ -474,8 +493,7 @@ const MapView = {
           <li>Pilih mode <b>〰 Saluran</b> untuk menyambung antar aset — jarak dihitung otomatis.</li>
           <li>Buka tab <b>SLD</b> untuk diagram segaris otomatis.</li>
         </ol>
-        <p>Punya data Excel/KML/KMZ? Import di tab <b>Data</b>.</p>
-        <button class="btn primary block" onclick="IO.loadSample()">Muat data contoh (fiktif)</button>
+        <p>Punya data GIS PLN, Excel, atau KML/KMZ? Import di tab <b>Data</b>.</p>
       </div>`;
     return `
       <h4>Ringkasan ${esc(d.meta.name)}</h4>

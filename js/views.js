@@ -294,7 +294,6 @@ const DataView = {
 
           <h3 class="mt">Lainnya</h3>
           <div class="btnrow">
-            <button class="btn" onclick="IO.loadSample()">Muat data contoh</button>
             <button class="btn danger" id="bClear">Hapus semua data</button>
           </div>
         </section>

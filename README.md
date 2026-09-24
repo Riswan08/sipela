@@ -23,7 +23,7 @@ lalu buka http://localhost:8765
 
 | Menu | Fungsi |
 |---|---|
-| **Peta** | Tambah aset (PLTD, GI, GH, Gardu/Trafo, Recloser, LBS, FCO, Pelanggan TM, Tiang) dengan klik peta atau **GPS saat survei**. Gambar saluran mengikuti jalur (titik belok) dan **panjangnya dihitung otomatis**. Ada layer satelit untuk menelusuri jalur tiang, plus alat ukur jarak. |
+| **Peta** | Tambah aset (PLTD, GI, GH, Gardu/Trafo, Recloser, LBS, FCO, Pelanggan TM, Tiang) dengan klik peta, **tempel titik koordinat** (desimal/DMS dari Google Maps atau GIS), atau **GPS saat survei**. Gambar saluran mengikuti jalur (titik belok) dan **panjangnya dihitung otomatis**. Ada layer satelit untuk menelusuri jalur tiang, plus alat ukur jarak. |
 | **SLD** | **Single Line Diagram otomatis** dari topologi: trunk lurus, cabang turun, titik buka (NO) & tie antar penyulang ditandai. Bisa zoom/geser, ekspor SVG/PNG, dan cetak A3. |
 | **Aset / Saluran** | Tabel yang bisa difilter dan diurutkan, rekap panjang (kms) per penyulang & penghantar, ekspor CSV. |
 | **Analisis** | Beban hilir, arus, % KHA, **drop tegangan kumulatif**, dan estimasi susut per seksi. **Jarak antar aset** lewat jaringan maupun garis lurus, dan jarak dari satu aset ke semua aset sejenis (misalnya trafo → GH terdekat). |

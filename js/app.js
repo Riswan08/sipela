@@ -38,7 +38,7 @@ const SldView = {
   },
   draw() {
     const wrap = document.getElementById('sldWrap');
-    if (!this.rootId) { wrap.innerHTML = '<div class="empty center"><p>Belum ada data. Tambahkan aset di Peta atau muat data contoh di tab Data.</p></div>'; return; }
+    if (!this.rootId) { wrap.innerHTML = '<div class="empty center"><p>Belum ada data. Tambahkan aset di Peta atau import data GIS di tab Data.</p></div>'; return; }
     const svg = SLD.render(this.rootId, this.opt);
     if (!svg) { wrap.innerHTML = '<p class="pad">Tidak dapat menggambar SLD.</p>'; return; }
     SLD.mount(wrap, svg);

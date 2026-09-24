@@ -68,6 +68,9 @@ input:disabled { background: #f1f5f9; color: var(--muted); }
 .seg button { border: 0; background: none; padding: 7px 2px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
 .seg button.active { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); font-weight: 600; color: var(--primary-2); }
 .tools .row { display: flex; gap: 6px; margin: 8px 0 4px; }
+.coord { margin-top: 10px; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 6px 10px; }
+.coord summary { cursor: pointer; font-weight: 600; color: var(--primary-2); font-size: 13px; }
+.coord code { background: #f1f5f9; padding: 0 3px; border-radius: 3px; }
 .typegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; }
 .typegrid button { display: flex; align-items: center; gap: 6px; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 7px; cursor: pointer; font-size: 12px; line-height: 1.2; }
 .typegrid button i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }

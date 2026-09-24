@@ -98,6 +98,29 @@ function num(v) {
   return isFinite(n) ? n : null;
 }
 
+// baca koordinat dari teks bebas: "-3.011, 127.95", "-3,011 127,95", DMS "3°0'39.7\"S 127°57'2.3\"E"
+function parseCoord(txt) {
+  let t = String(txt || '').trim();
+  if (!t) return null;
+  const dms = [...t.matchAll(/(\d+(?:[.,]\d+)?)\s*[°º]\s*(?:(\d+(?:[.,]\d+)?)\s*['′]\s*)?(?:(\d+(?:[.,]\d+)?)\s*["″]\s*)?\s*([NSEWUBTLnsewubtl])/g)];
+  if (dms.length >= 2) {
+    const v = m => { const f = x => parseFloat(String(x || 0).replace(',', '.')); let d = f(m[1]) + f(m[2]) / 60 + f(m[3]) / 3600; return /[SWBLswbl]/.test(m[4]) && !/[Uu]/.test(m[4]) ? -d : d; };
+    const isLat = m => /[NSUSnsu]/.test(m[4]) && !/[LlBb]/.test(m[4]);
+    const a = dms[0], b = dms[1];
+    const lat = isLat(a) ? v(a) : v(b), lng = isLat(a) ? v(b) : v(a);
+    return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [+lat.toFixed(7), +lng.toFixed(7)] : null;
+  }
+  // desimal: koma sebagai desimal hanya bila tidak ada titik dan ada 2 angka dipisah spasi/;
+  let nums;
+  if (!t.includes('.') && /\d,\d/.test(t) && /[\s;]/.test(t)) nums = t.split(/[\s;]+/).map(x => parseFloat(x.replace(',', '.')));
+  else nums = t.split(/[\s,;]+/).map(parseFloat);
+  nums = nums.filter(n => isFinite(n));
+  if (nums.length < 2) return null;
+  let [lat, lng] = nums;
+  if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) [lat, lng] = [lng, lat]; // tertukar
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [+lat.toFixed(7), +lng.toFixed(7)] : null;
+}
+
 // warna konsisten per penyulang
 const FEEDER_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#db2777', '#65a30d', '#4f46e5', '#b45309'];
 function feederColor(name) {
