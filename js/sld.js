@@ -47,6 +47,12 @@ const SLD = {
     place(t.root);
     t.root.row = 0;
     t.order.forEach(n => { if (n.parent) n.row = t.nodes.get(n.parent).row + n.off; });
+    // sumber dengan beberapa keluaran: taruh pembangkit/GI di tengah busbar agar alur
+    // pembangkit → busbar → penyulang terlihat jelas (penyulang tersebar di atas & bawah)
+    if (opt.perFeeder && ASSET_TYPES[t.root.asset.type]?.source && t.root.children.length > 1) {
+      const rows = t.root.children.map(c => c.row);
+      t.root.row = (Math.min(...rows) + Math.max(...rows)) / 2;
+    }
     return t;
   },
 
@@ -248,7 +254,7 @@ const SLD = {
       }
       if (!n.parent && n.children.length > 1 && ASSET_TYPES[a.type]?.source) {
         const ys = n.children.map(c => Y(c)); const bx = x + gapX / 2;
-        edges.push(`<line x1="${bx}" y1="${Math.min(y, ...ys) - 10}" x2="${bx}" y2="${Math.max(y, ...ys) + 10}" stroke="#111" stroke-width="5"/><text x="${bx + 6}" y="${Math.min(y, ...ys) - 14}" class="cond">Bus 20 kV</text>`);
+        edges.push(`<line x1="${bx}" y1="${Math.min(y, ...ys) - 16}" x2="${bx}" y2="${Math.max(y, ...ys) + 16}" stroke="#111" stroke-width="6"/><text x="${bx}" y="${Math.min(y, ...ys) - 22}" text-anchor="middle" class="len">Busbar 20 kV</text>`);
       }
       nodes.push(`<g class="node" data-id="${a.id}" transform="translate(${x},${y})"><title>${esc(ASSET_TYPES[a.type]?.label)} ${esc(a.code)}</title>${this.symbol(a)}${lbl}</g>`);
     }
