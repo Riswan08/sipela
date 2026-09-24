@@ -201,6 +201,7 @@ const Store = {
     await DB.set('current', this.current);
   },
   async createSystem(name, data, meta = {}) {
+    if (typeof Auth !== "undefined" && Auth.readOnly()) { App.toast('Mode pengunjung: tidak bisa membuat sistem'); return null; }
     await this.flush();
     const id = this.uid('s');
     const d = data ? this.normalize(data) : emptyData();
@@ -224,6 +225,7 @@ const Store = {
     this.emit('system');
   },
   async deleteSystem(id) {
+    if (typeof Auth !== "undefined" && Auth.readOnly()) { App.toast('Mode pengunjung: tidak bisa menghapus sistem'); return; }
     const i = this.systems.findIndex(x => x.id === id);
     if (i < 0) return;
     if (this._pending && this._pending.id === id) this._pending = null;
@@ -253,6 +255,7 @@ const Store = {
   },
   // simpan asinkron; penulisan digabung bila perubahan beruntun
   persist() {
+    if (typeof Auth !== "undefined" && Auth.readOnly()) return;
     this.data.meta.updated = new Date().toISOString();
     this._pending = { id: this.current, d: this.data };
     clearTimeout(this._pt);
@@ -278,6 +281,7 @@ const Store = {
   // semua perubahan data lewat sini agar bisa di-undo & tersimpan otomatis
   // perubahan besar (import ribuan aset): tanpa snapshot undo agar hemat memori
   mutateNoUndo(fn, reason = 'import') {
+    if (typeof Auth !== "undefined" && Auth.readOnly()) { App.toast('Mode pengunjung: hanya bisa melihat'); return null; }
     this.undoStack = [];
     this._idx = null;
     const r = fn(this.data);
@@ -287,6 +291,7 @@ const Store = {
     return r;
   },
   mutate(fn, reason = 'change') {
+    if (typeof Auth !== "undefined" && Auth.readOnly()) { App.toast('Mode pengunjung: hanya bisa melihat, tidak bisa mengubah data'); return null; }
     this.snapshot();
     this._idx = null;
     const r = fn(this.data);

@@ -5,6 +5,14 @@
 Aplikasi web untuk **membangun sendiri data jaringan distribusi 20 kV** ketika data SLD dan jarak antar aset belum tersedia.
 Tidak butuh server atau database: semua data tersimpan otomatis di browser, dan bisa di-backup ke file.
 
+## Masuk (login)
+
+Aplikasi dibuka lewat `login.html` (otomatis dialihkan bila belum masuk):
+- **Tamu / pengunjung**: tanpa akun, bisa melihat semua sistem, peta, SLD, tabel, dan analisis; tidak bisa menambah/mengubah/menghapus/backup (tombol edit, tab Data, dan mode Aset/Saluran disembunyikan; perubahan data diblokir).
+- **Admin**: akses penuh. Kredensial disimpan sebagai hash SHA-256 di `login.html` (`ADMIN_HASH` = sha256("user:sandi")); ganti sandi dengan menghitung hash baru. "Ingat saya" menyimpan sesi di perangkat.
+
+Catatan: ini aplikasi statis tanpa server, sehingga pembatasan tamu berlaku di sisi klien, dan data tersimpan **di browser masing-masing** (tamu di perangkat lain tidak otomatis melihat data admin kecuali dibagikan lewat backup).
+
 ## Cara menjalankan
 
 **Cara cepat (laptop):** klik dua kali `index.html` (butuh internet untuk peta).

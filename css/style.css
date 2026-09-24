@@ -35,6 +35,13 @@ kbd { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; paddin
 #nav button.active { background: rgba(255,255,255,.16); color: #fff; font-weight: 600; }
 .top-actions { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
 .top-actions .muted { color: #94a3b8; font-size: 12px; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.14); color: #e2e8f0; }
+.badge.admin { background: #16a34a; color: #fff; }
+body.ro .ro-hide { display: none !important; }
+body.ro .seg { grid-template-columns: repeat(2, 1fr); }
+body.ro #editor input, body.ro #editor select, body.ro #editor textarea, body.ro #modeOpts input, body.ro #modeOpts select { pointer-events: none; background: #f8fafc; color: #334155; }
+body.ro .kop-edit { display: none !important; }
+body.ro .leaflet-marker-draggable { cursor: default; }
 .topbar .btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); color: #fff; }
 
 main { height: calc(100% - var(--top)); position: relative; }

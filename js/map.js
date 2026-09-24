@@ -72,6 +72,7 @@ const MapView = {
   },
 
   setMode(m) {
+    if (typeof Auth !== "undefined" && Auth.readOnly() && (m === 'asset' || m === 'line')) m = 'select';
     this.mode = m;
     this.cancelDraft();
     this.measurePts = [];
@@ -127,7 +128,7 @@ const MapView = {
         this.markers.set(a.id, cm);
         continue;
       }
-      const mk = L.marker([a.lat, a.lng], { icon: this.iconFor(a), draggable: this.mode === 'select' && this.opts.allowDrag, zIndexOffset: a.type === 'TIANG' ? 0 : 500 });
+      const mk = L.marker([a.lat, a.lng], { icon: this.iconFor(a), draggable: this.mode === 'select' && this.opts.allowDrag && !(typeof Auth !== "undefined" && Auth.readOnly()), zIndexOffset: a.type === 'TIANG' ? 0 : 500 });
       mk.bindTooltip(`<b>${esc(a.code)}</b> ${esc(a.name)}<br>${esc(ASSET_TYPES[a.type]?.label)}${a.kva ? ' · ' + fmt.n(a.kva, 0) + ' kVA' : ''}`, { direction: 'top', offset: [0, -10] });
       mk.on('click', () => this.onAssetClick(a.id));
       mk.on('dragend', e => {
@@ -405,7 +406,7 @@ const MapView = {
     let h = '';
     if (this.mode === 'select') {
       h = `<p class="hint">Klik aset/saluran untuk melihat & mengubah data. <kbd>Del</kbd> menghapus yang dipilih.</p>
-        <label class="chk"><input type="checkbox" data-o="allowDrag" ${o.allowDrag ? 'checked' : ''}> Izinkan geser posisi aset</label>`;
+        <label class="chk ro-hide"><input type="checkbox" data-o="allowDrag" ${o.allowDrag ? 'checked' : ''}> Izinkan geser posisi aset</label>`;
     } else if (this.mode === 'asset') {
       h = `<div class="typegrid">${Object.entries(ASSET_TYPES).map(([k, T]) =>
             `<button data-type="${k}" class="${o.type === k ? 'active' : ''}" style="--c:${T.color}"><i></i>${T.label}</button>`).join('')}</div>
@@ -539,7 +540,7 @@ const MapView = {
         <label class="f"><span>Daya mampu (kW)</span><input data-k="kw" data-num inputmode="decimal" value="${a.kw ?? ''}"></label>
         <label class="f"><span>Pemilik / operator</span><input data-k="owner" value="${esc(a.owner || 'PLN')}"></label>
       </div>
-      <button class="btn primary block" data-act="plant">⚙ Susun keluaran: trafo step-up ${a.gkv ?? Plant.KINDS[a.gen || 'PLTD'].gkv}/20 kV → busbar → CB tiap penyulang</button>` : ''}
+      <button class="btn primary block ro-hide" data-act="plant">⚙ Susun keluaran: trafo step-up ${a.gkv ?? Plant.KINDS[a.gen || 'PLTD'].gkv}/20 kV → busbar → CB tiap penyulang</button>` : ''}
       ${T.load ? `<div class="grid2">
         <label class="f"><span>Kapasitas (kVA)</span><input data-k="kva" data-num inputmode="decimal" value="${a.kva ?? ''}"></label>
         <label class="f"><span>Beban (kVA) ukur/estimasi</span><input data-k="loadKva" data-num inputmode="decimal" value="${a.loadKva ?? ''}" placeholder="atau isi % beban →"></label>
@@ -564,11 +565,11 @@ const MapView = {
       <label class="f"><span>Keterangan</span><textarea data-k="note" rows="2">${esc(a.note)}</textarea></label>
       <div class="btnrow">
         <button class="btn" data-act="zoom">🔍 Zoom</button>
-        <button class="btn" data-act="connect">〰 Sambung</button>
-        ${!lines.length || T.source ? '<button class="btn primary" data-act="autoconnect">⚡ Sambung ke jaringan terdekat</button>' : ''}
+        <button class="btn ro-hide" data-act="connect">〰 Sambung</button>
+        ${!lines.length || T.source ? '<button class="btn primary ro-hide" data-act="autoconnect">⚡ Sambung ke jaringan terdekat</button>' : ''}
         <button class="btn" data-act="sld">SLD</button>
         <button class="btn" data-act="dist">📏 Jarak</button>
-        <button class="btn danger" data-act="delete">Hapus</button>
+        <button class="btn danger ro-hide" data-act="delete">Hapus</button>
       </div>
       <h4>Saluran tersambung (${lines.length})</h4>
       <ul class="mini">${lines.map(l => {
@@ -600,9 +601,9 @@ const MapView = {
       <label class="f"><span>Keterangan</span><textarea data-k="note" rows="2">${esc(l.note)}</textarea></label>
       <div class="btnrow">
         <button class="btn" data-act="zoom">🔍 Zoom</button>
-        <button class="btn" data-act="reverse">⇄ Balik arah</button>
-        ${(l.path || []).length ? '<button class="btn" data-act="clearpath">Luruskan</button>' : ''}
-        <button class="btn danger" data-act="delete">Hapus</button>
+        <button class="btn ro-hide" data-act="reverse">⇄ Balik arah</button>
+        ${(l.path || []).length ? '<button class="btn ro-hide" data-act="clearpath">Luruskan</button>' : ''}
+        <button class="btn danger ro-hide" data-act="delete">Hapus</button>
       </div>`;
   },
 

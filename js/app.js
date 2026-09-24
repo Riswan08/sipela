@@ -74,6 +74,12 @@ const App = {
   views: { map: null, sld: SldView, assets: AssetsView, lines: LinesView, analysis: AnalysisView, data: DataView },
 
   async init() {
+    const ro = Auth.readOnly();
+    document.body.classList.toggle('ro', ro);
+    const badge = document.getElementById('userBadge');
+    badge.textContent = ro ? '👁 Tamu · hanya lihat' : '🛡 Admin · ' + Auth.name();
+    badge.className = 'badge ' + (ro ? 'tamu' : 'admin');
+    document.getElementById('btnLogout').onclick = () => { if (confirm('Keluar dari SIPELA?')) Auth.logout(); };
     await Store.load();
     const sel = document.getElementById('sysSel'), ulp = document.getElementById('ulpSel');
     sel.onchange = async () => {
@@ -139,7 +145,7 @@ const App = {
     const have = new Set(Store.systems.map(s => s.sistem).filter(Boolean));
     const refs = SistemRef.systemsOf(this.ulpFilter).filter(r => !have.has(r.sistem));
     const refOpts = refs.map(r => `<option value="__ref:${esc(r.sistem)}">${esc(r.sistem)}${!this.ulpFilter ? ` (${esc(r.ulp)})` : ''} — belum ada data</option>`);
-    sel.innerHTML = opts.join('') + (refOpts.length ? `<optgroup label="Belum diimport (${refOpts.length})">${refOpts.join('')}</optgroup>` : '') + '<option value="__new">＋ Sistem baru…</option>';
+    sel.innerHTML = opts.join('') + (Auth.readOnly() ? '' : (refOpts.length ? `<optgroup label="Belum diimport (${refOpts.length})">${refOpts.join('')}</optgroup>` : '') + '<option value="__new">＋ Sistem baru…</option>');
     sel.value = Store.current;
     document.getElementById('dlAssets').innerHTML = Store.data.assets.map(a => `<option value="${esc(a.code)}">${esc(ASSET_TYPES[a.type]?.short)} ${esc(a.name)}</option>`).join('');
     document.getElementById('dlFeeders').innerHTML = Store.feeders().map(f => `<option value="${esc(f)}">`).join('');
@@ -150,6 +156,7 @@ const App = {
   },
 
   show(view) {
+    if (view === 'data' && Auth.readOnly()) { this.toast('Tab Data hanya untuk admin'); view = 'map'; }
     this.view = view;
     history.replaceState(null, '', '#' + view);
     document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));

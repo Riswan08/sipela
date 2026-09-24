@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="apple-touch-icon" href="img/icon-192.png">
-  <link rel="stylesheet" href="css/style.css?v=202609250002">
+  <link rel="stylesheet" href="css/style.css?v=202609250055">
 </head>
 <body>
   <header class="topbar">
@@ -19,12 +19,14 @@
       <button data-view="assets">▦ Aset</button>
       <button data-view="lines">〰 Saluran</button>
       <button data-view="analysis">📊 Analisis</button>
-      <button data-view="data">💾 Data</button>
+      <button data-view="data" class="ro-hide">💾 Data</button>
     </nav>
     <div class="top-actions">
       <span id="appVer" class="muted" title="Versi aplikasi"></span>
       <span id="saveState" class="muted"></span>
-      <button id="btnUndo" class="btn sm" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button id="btnUndo" class="btn sm ro-hide" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <span id="userBadge" class="badge"></span>
+      <button id="btnLogout" class="btn sm" title="Keluar">Keluar</button>
     </div>
   </header>
 
@@ -35,8 +37,8 @@
         <div class="tools">
           <div class="seg" id="modeSeg">
             <button data-mode="select">🖱 Pilih</button>
-            <button data-mode="asset">➕ Aset</button>
-            <button data-mode="line">〰 Saluran</button>
+            <button data-mode="asset" class="ro-hide">➕ Aset</button>
+            <button data-mode="line" class="ro-hide">〰 Saluran</button>
             <button data-mode="measure">📏 Ukur</button>
           </div>
           <div class="row">
@@ -62,15 +64,16 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
-  <script src="js/store.js?v=202609250002"></script>
-  <script src="js/sistem.js?v=202609250002"></script>
-  <script src="js/calc.js?v=202609250002"></script>
-  <script src="js/map.js?v=202609250002"></script>
-  <script src="js/sld.js?v=202609250002"></script>
-  <script src="js/io.js?v=202609250002"></script>
-  <script src="js/gis.js?v=202609250002"></script>
-  <script src="js/equip.js?v=202609250002"></script>
-  <script src="js/views.js?v=202609250002"></script>
-  <script src="js/app.js?v=202609250002"></script>
+  <script src="js/auth.js?v=202609250055"></script>
+  <script src="js/store.js?v=202609250055"></script>
+  <script src="js/sistem.js?v=202609250055"></script>
+  <script src="js/calc.js?v=202609250055"></script>
+  <script src="js/map.js?v=202609250055"></script>
+  <script src="js/sld.js?v=202609250055"></script>
+  <script src="js/io.js?v=202609250055"></script>
+  <script src="js/gis.js?v=202609250055"></script>
+  <script src="js/equip.js?v=202609250055"></script>
+  <script src="js/views.js?v=202609250055"></script>
+  <script src="js/app.js?v=202609250055"></script>
 </body>
 </html>
