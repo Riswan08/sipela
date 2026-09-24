@@ -164,6 +164,7 @@ input:disabled { background: #f1f5f9; color: var(--muted); }
 .okbox { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 12px; margin: 8px 0; font-size: 13px; }
 .okbox ul, .warnbox ul { margin: 4px 0 0; padding-left: 18px; }
 .imp { display: grid; gap: 10px; }
+.card.pub { grid-column: 1 / -1; border-color: #86efac; background: linear-gradient(#f0fdf4, #fff 120px); }
 .card.gis { grid-column: 1 / -1; border-color: #67e8f9; background: linear-gradient(#ecfeff, #fff 120px); }
 .chip.sel { font-weight: 500; padding: 4px 10px; cursor: pointer; }
 .chip.sel input { margin: 0 2px 0 0; }

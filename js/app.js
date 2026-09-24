@@ -78,6 +78,7 @@ const App = {
     document.body.classList.toggle('ro', ro);
     const badge = document.getElementById('userBadge');
     badge.textContent = ro ? '👁 Tamu · hanya lihat' : '🛡 Admin · ' + Auth.name();
+    if (ro) badge.title = 'Menampilkan data publikasi';
     badge.className = 'badge ' + (ro ? 'tamu' : 'admin');
     document.getElementById('btnLogout').onclick = () => { if (confirm('Keluar dari SIPELA?')) Auth.logout(); };
     await Store.load();
@@ -150,7 +151,7 @@ const App = {
     document.getElementById('dlAssets').innerHTML = Store.data.assets.map(a => `<option value="${esc(a.code)}">${esc(ASSET_TYPES[a.type]?.short)} ${esc(a.name)}</option>`).join('');
     document.getElementById('dlFeeders').innerHTML = Store.feeders().map(f => `<option value="${esc(f)}">`).join('');
     const s = document.getElementById('saveState');
-    s.textContent = Store.saveOk ? (Store.data.meta.updated ? 'Tersimpan ✓' : '') : 'Gagal simpan! Unduh backup.';
+    s.textContent = Store.published ? `Publikasi ${fmt.date(Store.published.publishedAt)}` : Store.saveOk ? (Store.data.meta.updated ? 'Tersimpan ✓' : '') : 'Gagal simpan! Unduh backup.';
     s.className = Store.saveOk ? 'muted' : 'bad';
     document.getElementById('btnUndo').disabled = !Store.undoStack.length;
   },

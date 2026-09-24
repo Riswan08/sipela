@@ -613,6 +613,9 @@ const MapView = {
     const feeders = {};
     let jtrM = 0;
     d.lines.forEach(l => { if (l.level === 'JTR') { jtrM += Store.lineLength(l); return; } const f = l.feeder || '(tanpa penyulang)'; feeders[f] = (feeders[f] || 0) + Store.lineLength(l); });
+    if (!d.assets.length && typeof Auth !== 'undefined' && Auth.readOnly()) return `
+      <div class="empty"><h3>${Store.published ? 'Sistem ini belum berisi data' : 'Belum ada data publikasi'}</h3>
+        <p>${Store.published ? 'Pilih sistem lain lewat dropdown di atas.' : 'Admin belum mempublikasikan data. Silakan hubungi bagian Perencanaan Sistem.'}</p></div>`;
     if (!d.assets.length) return `
       <div class="empty">
         <h3>Mulai dari sini</h3>

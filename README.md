@@ -13,6 +13,10 @@ Aplikasi dibuka lewat `login.html` (otomatis dialihkan bila belum masuk):
 
 Catatan: ini aplikasi statis tanpa server, sehingga pembatasan tamu berlaku di sisi klien, dan data tersimpan **di browser masing-masing** (tamu di perangkat lain tidak otomatis melihat data admin kecuali dibagikan lewat backup).
 
+## Publikasikan data untuk tamu
+
+Di **Data → Publikasikan data untuk tamu** (admin): isi **token GitHub fine-grained** (hanya repo `sipela`, izin *Contents: Read and write*), lalu klik **Publikasikan semua sistem**. Aplikasi mengirim setiap sistem ke folder `data/` di repo lewat API GitHub (`data/systems.json` + `data/sys-<id>.json`), dan GitHub Pages menyajikannya ±1–2 menit kemudian. **Tamu** otomatis memuat data publikasi ini (hanya baca) di perangkat mana pun; admin di perangkat lain bisa **Ambil data publikasi ke perangkat ini**. Token hanya tersimpan di browser admin.
+
 ## Cara menjalankan
 
 **Cara cepat (laptop):** klik dua kali `index.html` (butuh internet untuk peta).

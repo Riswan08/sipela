@@ -176,6 +176,8 @@ const Store = {
   saveOk: true,
 
   async load() {
+    // tamu: hanya data publikasi (dari GitHub Pages), tidak menyentuh penyimpanan lokal
+    if (typeof Auth !== 'undefined' && Auth.readOnly()) return this.loadPublished();
     try {
       this.systems = (await DB.get('systems')) || [];
       this.current = await DB.get('current');
@@ -192,6 +194,24 @@ const Store = {
       const d = await DB.get('sys:' + this.current);
       this.data = this.normalize(d);
     } catch (e) { console.warn('Gagal memuat data', e); }
+  },
+  async loadPublished() {
+    this.published = null;
+    try {
+      const idx = await Publish.fetchIndex();
+      if (!idx || !idx.systems.length) { this.systems = []; this.current = null; this.data = emptyData(); this.data.meta.name = 'Belum ada data publikasi'; return; }
+      this.published = idx;
+      this.systems = idx.systems.map(s => ({ ...s }));
+      this.current = this.systems.some(s => s.id === idx.current) ? idx.current : this.systems[0].id;
+      this._pubCache = new Map();
+      this.data = await this.fetchPublished(this.current);
+    } catch (e) { console.warn('Gagal memuat publikasi', e); this.systems = []; this.current = null; this.data = emptyData(); }
+  },
+  async fetchPublished(id) {
+    if (this._pubCache.has(id)) return this._pubCache.get(id);
+    const d = this.normalize(await Publish.fetchSystem(id));
+    this._pubCache.set(id, d);
+    return d;
   },
   system(id = this.current) { return this.systems.find(x => x.id === id); },
   async saveIndex(id = this.current, d = this.data) {
@@ -217,6 +237,12 @@ const Store = {
   },
   async switchTo(id) {
     if (id === this.current || !this.system(id)) return;
+    if (this.published) {
+      this.current = id; this._idx = null;
+      try { this.data = await this.fetchPublished(id); } catch (e) { App.toast('Gagal memuat sistem: ' + e.message); return; }
+      this.emit('system');
+      return;
+    }
     await this.flush();
     this.current = id;
     this.data = this.normalize(await DB.get('sys:' + id));
