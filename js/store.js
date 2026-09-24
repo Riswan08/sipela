@@ -23,6 +23,7 @@ const ASSET_TYPES = {
 // Nilai impedansi default (Ω/km) — pendekatan umum, WAJIB disesuaikan dengan
 // SPLN / data pabrikan yang berlaku di unit Anda (bisa diedit di menu Data).
 const DEFAULT_CONDUCTORS = [
+  { code: 'AAAC-35',   name: 'AAAC 35 mm²',               r: 0.9217, x: 0.3790, kha: 170 },
   { code: 'AAAC-70',   name: 'AAAC 70 mm²',               r: 0.4608, x: 0.3572, kha: 255 },
   { code: 'AAAC-150',  name: 'AAAC 150 mm²',              r: 0.2162, x: 0.3305, kha: 425 },
   { code: 'AAAC-240',  name: 'AAAC 240 mm²',              r: 0.1344, x: 0.3158, kha: 585 },

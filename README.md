@@ -49,6 +49,8 @@ Setelah import, **tambahkan PLTD/GI sebagai sumber** (lewat titik koordinat), la
 
 Daftar **ULP → Sistem → Penyulang** UP3 Masohi tertanam di `js/sistem.js` (sumber: *Data Sistem Per Penyulang.xlsx*). Saat file GIS seluruh UP3 diimport, wizard mengelompokkan tiap penyulang ke sistemnya (nama beda ejaan seperti TAMILOW→Tamilouw ditangani), menampilkan tabel untuk dikoreksi, lalu membuat/memperbarui satu entri sistem per sistem. Pilihan penyulang yang Anda tetapkan manual disimpan untuk import berikutnya. Dropdown **ULP** dan **Sistem** ada di kiri atas; setiap penyulang dalam satu sistem diberi warna berbeda (legenda di kiri bawah peta, klik untuk zoom).
 
+Jenis penghantar JTM diambil dari sheet JTM (kolom `UKURAN_PENGHANTAR_TM`, berupa kode angka): wizard menampilkan pemetaan kode → penghantar (default 1=35, 2=70, 3=150, 4=240 mm²; kode lain Anda tetapkan, pilihan disimpan), dan tiap penyulang memakai penghantar yang dominan menurut panjang di GIS karena JTM di GIS tidak punya geometri per ruas.
+
 Pengaman rekonstruksi: tiang dengan kolom PENYULANG kosong mengikuti penyulang tiang terdekat (≤ 300 m); ruas JTM/JTR dan sambungan gardu yang lebih jauh dari batas (default 1.500 m) tidak dibuat, sehingga jaringan boleh terpecah beberapa kelompok daripada tersambung palsu puluhan km.
 
 ## Banyak sistem dalam satu aplikasi

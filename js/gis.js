@@ -82,12 +82,25 @@ const GisImport = {
     if (S.trafo) count(S.trafo.rows, 'trafo');
     if (S.tiang) count(S.tiang.rows, 'tiang');
     if (S.app) count(S.app.rows, 'app');
+    // komposisi kode ukuran penghantar TM per penyulang (bobot = Shape_Length) dari sheet JTM
+    const condOf = new Map(); out.condCodes = new Set();
+    (S.jtm?.rows || []).forEach(r => {
+      const f = this.fdr(r); const code = String(r.UKURAN_PENGHANTAR_TM ?? '').trim();
+      if (!f || !code) return;
+      const w = num(r.SHAPE_LENGTH) ?? num(r.PANJANG_HANTARAN) ?? 1;
+      const c = condOf.get(f) || {}; c[code] = (c[code] || 0) + w; condOf.set(f, c); out.condCodes.add(code);
+    });
+    out.condCodes = [...out.condCodes].sort();
+    out.condMap = Object.assign({ '1': 'AAAC-35', '2': 'AAAC-70', '3': 'AAAC-150', '4': 'AAAC-240' }, (await DB.get('condMap')) || {});
     const saved = (await DB.get('feederMap')) || {};
     out.feeders = [...feeders.entries()].map(([name, c]) => {
       const ulp = Object.entries(c.owners).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
       const m = SistemRef.match(name, ulp);
       const sistem = saved[name] !== undefined ? saved[name] : (m ? m.sistem : '');
-      return { name, ...c, ulp, sistem, how: saved[name] !== undefined ? 'tersimpan' : (m ? m.how : '') };
+      const comp = condOf.get(name);
+      const total = comp ? Object.values(comp).reduce((a, b) => a + b, 0) : 0;
+      const cond = comp ? Object.entries(comp).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ code: k, pct: Math.round(v / total * 100) })) : [];
+      return { name, ...c, ulp, sistem, cond, how: saved[name] !== undefined ? 'tersimpan' : (m ? m.how : '') };
     }).sort((a, b) => (a.ulp || 'ZZ').localeCompare(b.ulp || 'ZZ') || a.sistem.localeCompare(b.sistem) || a.name.localeCompare(b.name));
     this.parsed = out;
     return out;
@@ -138,6 +151,16 @@ const GisImport = {
     const tmPoles = poles.filter(x => !this.isTR(x.r)), trPoles = poles.filter(x => this.isTR(x.r));
     const apps = (S.app?.rows || []).filter(inF).map(r => ({ r, p: this.ll(r) })).filter(x => x.p);
     const jtrRows = S.jtr?.rows || [];
+    // penghantar JTM tiap penyulang = kode dominan di sheet JTM (dipetakan lewat o.condMap), jika tidak ada pakai default
+    const condMap = o.condMap || {};
+    const feederCond = {}, condNote = [];
+    (this.parsed.feeders || []).forEach(f => {
+      if (!F.has(f.name)) return;
+      const top = (f.cond || []).find(c => condMap[c.code]);
+      feederCond[f.name] = top ? condMap[top.code] : o.tmCond;
+      if (f.cond && f.cond.length) condNote.push(`${f.name}: ${f.cond.map(c => `${condMap[c.code] || 'kode ' + c.code} ${c.pct}%`).join(', ')}`);
+    });
+    const condFor = f => feederCond[f] || o.tmCond;
 
     Store.mutateNoUndo(d => {
       if (o.replace) {
@@ -170,7 +193,8 @@ const GisImport = {
         const A = tm[i].a, B = tm[j].a, len = Geo.dist(tm[i].p, tm[j].p);
         if (len > o.maxEdgeM) { rep.split++; continue; } // terlalu jauh: biarkan terpisah, jangan dipaksa tersambung
         const gap = len > o.gapM;
-        Store._newLine({ from: A.id, to: B.id, level: 'JTM', conductor: o.tmCond, feeder: A.feeder === B.feeder ? A.feeder : (A.feeder || B.feeder),
+        const fd = A.feeder === B.feeder ? A.feeder : (A.feeder || B.feeder);
+        Store._newLine({ from: A.id, to: B.id, level: 'JTM', conductor: condFor(fd), feeder: fd,
           auto: true, gap, note: 'Rekonstruksi otomatis (MST)' + (gap ? ` · celah ${Math.round(len)} m — cek lapangan` : '') });
         rep.jtm++; rep.jtmM += len; if (gap) rep.gap++;
       }
@@ -215,7 +239,7 @@ const GisImport = {
           if (near && near.d > o.maxEdgeM) { rep.gdFar = (rep.gdFar || 0) + 1; near = null; }
           if (near) {
             const gap = near.d > o.gapM;
-            Store._newLine({ from: near.t.a.id, to: a.id, level: 'JTM', conductor: o.tmCond, feeder, auto: true, gap,
+            Store._newLine({ from: near.t.a.id, to: a.id, level: 'JTM', conductor: condFor(feeder), feeder, auto: true, gap,
               note: `Sambungan gardu estimasi (${Math.round(near.d)} m)` + (gap ? ' — cek lapangan' : '') });
           }
         }
@@ -238,8 +262,9 @@ const GisImport = {
       /* 4. JTR dari urutan nomor tiang */
       rep.tr = 0; rep.jtr = 0;
       const kabel = (gd, jur) => {
-        const r = jtrRows.find(r => String(r.LOCATION).trim() === gd && String(r.JURUSAN).trim() === String(+jur || jur));
-        return r ? [r.JENIS_KABEL, r.UKURAN_KAWAT].filter(Boolean).join(' ') : 'LVTC';
+        const r = jtrRows.find(r => String(r.LOCATION).trim() === gd && String(r.JURUSAN ?? r.SIRKUIT ?? '').trim() === String(+jur || jur));
+        const s = r ? [r.JENIS_KABEL, r.UKURAN_KAWAT].filter(Boolean).join(' ') : '';
+        return s || 'LVTC';
       };
       for (const x of gardu.values()) {
         const ga = assetOf.get(x.code); if (!ga) continue;
@@ -276,6 +301,7 @@ const GisImport = {
     const hasSrc = Store.data.assets.some(a => ASSET_TYPES[a.type]?.source);
     return [
       `Tiang TM: ${rep.tm}${rep.dup ? ` (${rep.dup} duplikat digabung)` : ''} → ${rep.jtm} ruas JTM direkonstruksi, total ${fmt.m(rep.jtmM)}`,
+      condNote.length ? `Penghantar JTM per penyulang (dari sheet JTM GIS, dipakai yang dominan): ${condNote.join(' · ')}` : `Sheet JTM tidak memuat ukuran penghantar — dipakai default ${o.tmCond}`,
       rep.gap ? `⚠ ${rep.gap} ruas JTM lebih dari ${o.gapM} m (garis putus-putus merah di peta) — kemungkinan ada tiang yang belum terdata; cek lapangan` : 'Tidak ada celah JTM yang mencurigakan',
       rep.split ? `⚠ Jaringan JTM terpisah menjadi ${rep.split + 1} kelompok (jarak antar kelompok > ${o.maxEdgeM} m) — sambungkan manual bila memang satu penyulang` : '',
       rep.gdFar ? `⚠ ${rep.gdFar} gardu tidak disambungkan karena tiang TM terdekat > ${o.maxEdgeM} m — kemungkinan tiang TM-nya belum terdata` : '',
@@ -309,6 +335,11 @@ const GisImport = {
   },
 
   /* ---------- UI di tab Data ---------- */
+  condText(f) {
+    if (!f.cond || !f.cond.length) return '<span class="muted">tidak ada di JTM</span>';
+    const m = this.parsed.condMap || {};
+    return f.cond.map((c, i) => `<span class="${i ? 'muted' : ''}">${esc(m[c.code] || 'kode ' + c.code)} ${c.pct}%</span>`).join(', ');
+  },
   card() {
     return `<section class="card gis">
       <h3>Import data GIS PLN <small class="muted">(ArcGIS "Table To Excel")</small></h3>
@@ -358,16 +389,21 @@ const GisImport = {
       </div>
       <h4>Pengelompokan penyulang → sistem <small class="muted">(${P.feeders.length} penyulang${nUnk ? `, <span class="warn">${nUnk} belum ditetapkan</span>` : ''})</small></h4>
       <div class="wiz tbl-wrap short"><table>
-        <thead><tr><th>Penyulang (GIS)</th><th>ULP</th><th>Data</th><th>Sistem tujuan</th><th></th></tr></thead>
+        <thead><tr><th>Penyulang (GIS)</th><th>ULP</th><th>Data</th><th>Penghantar (GIS)</th><th>Sistem tujuan</th><th></th></tr></thead>
         <tbody>${P.feeders.map((f, i) => `<tr class="${!f.sistem ? 'unk' : ''}">
           <td><b>${esc(f.name)}</b></td><td>${esc(f.ulp || '?')}</td>
           <td class="small muted">${f.trafo} GD · ${f.tiang} tiang · ${f.app} APP</td>
+          <td class="small" data-cond="${i}">${this.condText(f)}</td>
           <td><select data-fi="${i}">${sysOpts(f.sistem, f.ulp)}</select></td>
           <td class="small muted">${f.how === 'sama' ? '✓' : f.how === 'alias' || f.how === 'mirip' ? '≈ ' + f.how : f.how === 'tersimpan' ? '💾' : '<span class="warn">pilih</span>'}</td></tr>`).join('')}</tbody>
       </table></div>
       <p class="hint">Penyulang yang belum dikenal (kuning) silakan pilih sistemnya, atau biarkan "lewati". Pilihan disimpan dan dipakai lagi pada import berikutnya.</p>
+      ${P.condCodes.length ? `<h4>Kode ukuran penghantar TM di GIS → jenis penghantar</h4>
+      <p class="hint">Sheet JTM memakai kode angka (kolom UKURAN_PENGHANTAR_TM). Pastikan pemetaannya sesuai domain GIS unit Anda; pilihan disimpan.</p>
+      <div class="grid3">${P.condCodes.map(c => `<label class="f"><span>Kode ${esc(c)} ${P.condMap[c] ? '' : '<span class="warn">(belum dipetakan)</span>'}</span>
+        <select data-cc="${esc(c)}"><option value="">— pakai default —</option>${Store.data.conductors.map(x => `<option value="${esc(x.code)}" ${P.condMap[c] === x.code ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`).join('')}</div>` : ''}
       <div class="grid2">
-        <label class="f"><span>Penghantar JTM (default)</span><select id="gisCond">${MapView.condOptions('AAAC-70')}</select></label>
+        <label class="f"><span>Penghantar JTM default (bila penyulang tak punya data JTM)</span><select id="gisCond">${MapView.condOptions('AAAC-70')}</select></label>
         <label class="f"><span>Faktor kebersamaan beban</span><input id="gisCf" value="0.4" inputmode="decimal"></label>
         <label class="f"><span>Tandai celah JTM bila > (m)</span><input id="gisGap" value="150" inputmode="decimal"></label>
         <label class="f"><span>Gardu menempel tiang TM bila ≤ (m)</span><input id="gisSnap" value="80" inputmode="decimal"></label>
@@ -377,6 +413,11 @@ const GisImport = {
       <label class="chk"><input type="radio" name="gisMode" value="one"> Gabung semua ke sistem aktif "<b>${esc(Store.data.meta.name)}</b>" (hasil import GIS lama di sistem ini diganti)</label>
       <button class="btn primary" id="gisRun">Import</button>
       <div id="gisLog"></div>`;
+    box.querySelectorAll('select[data-cc]').forEach(sel => sel.onchange = () => {
+      P.condMap[sel.dataset.cc] = sel.value;
+      DB.set('condMap', P.condMap);
+      box.querySelectorAll('[data-cond]').forEach(td => { td.innerHTML = this.condText(P.feeders[+td.dataset.cond]); });
+    });
     box.querySelectorAll('select[data-fi]').forEach(sel => sel.onchange = () => {
       const f = P.feeders[+sel.dataset.fi]; f.sistem = sel.value; f.how = 'tersimpan';
       sel.closest('tr').classList.toggle('unk', !f.sistem);
@@ -387,6 +428,7 @@ const GisImport = {
         tmCond: box.querySelector('#gisCond').value,
         cf: num(box.querySelector('#gisCf').value) ?? 0.4, gapM: num(box.querySelector('#gisGap').value) ?? 150,
         snapGardu: num(box.querySelector('#gisSnap').value) ?? 80, maxEdgeM: num(box.querySelector('#gisMax').value) ?? 1500,
+        condMap: P.condMap,
       };
       const mode = box.querySelector('input[name=gisMode]:checked').value;
       const chosen = P.feeders.filter(f => f.sistem);
