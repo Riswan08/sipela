@@ -20,6 +20,8 @@ kbd { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; paddin
 #ulpSel option { color: #0f172a; }
 #sysSel { width: auto; max-width: 240px; background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); padding: 4px 8px; font-size: 13px; font-weight: 600; }
 #sysSel option { color: #0f172a; }
+#sysSel optgroup { color: #64748b; font-style: normal; }
+#appVer { font-size: 11px; color: #64748b; }
 .syslist { list-style: none; padding: 0; margin: 6px 0; }
 .syslist li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 .syslist li.cur { font-weight: 700; }

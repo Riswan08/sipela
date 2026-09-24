@@ -60,8 +60,17 @@ const App = {
     const sel = document.getElementById('sysSel'), ulp = document.getElementById('ulpSel');
     sel.onchange = async () => {
       if (sel.value === '__new') { this.newSystem(); this.refreshCommon(); return; }
+      if (sel.value.startsWith('__ref:')) {
+        // sistem dari daftar referensi yang belum punya data: buat entri kosong
+        const ref = SISTEM_REF.find(s => s.sistem === sel.value.slice(6));
+        await Store.createSystem('Sistem ' + ref.sistem, null, { ulp: ref.ulp, sistem: ref.sistem });
+        this.toast(`Sistem ${ref.sistem} dibuat (masih kosong) — import GIS atau tambah aset di peta`);
+        return;
+      }
       await Store.switchTo(sel.value);
     };
+    const vm = ([...document.scripts].find(s => /app\.js\?v=/.test(s.src))?.src.match(/v=(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/) || []);
+    if (vm.length) document.getElementById("appVer").textContent = `v${vm[1]}.${vm[2]}.${vm[3]}-${vm[4]}${vm[5]}`;
     ulp.onchange = () => { this.ulpFilter = ulp.value; this.refreshCommon(); const first = this.systemsFiltered()[0]; if (first && !this.systemsFiltered().some(s => s.id === Store.current)) Store.switchTo(first.id); };
     document.querySelectorAll('#nav button').forEach(b => b.onclick = () => this.show(b.dataset.view));
     document.getElementById('btnUndo').onclick = () => this.undo();
@@ -100,15 +109,19 @@ const App = {
   },
   refreshCommon() {
     const ulpSel = document.getElementById('ulpSel'), sel = document.getElementById('sysSel');
-    const ulps = [...new Set(Store.systems.map(s => s.ulp).filter(Boolean))].sort();
+    // ULP: gabungan daftar referensi UP3 dan ULP yang ada di data
+    const ulps = [...new Set([...SistemRef.ulps(), ...Store.systems.map(s => s.ulp).filter(Boolean)])].sort();
     ulpSel.innerHTML = `<option value="">Semua ULP</option>` + ulps.map(u => `<option value="${esc(u)}" ${u === this.ulpFilter ? 'selected' : ''}>ULP ${esc(u)}</option>`).join('');
-    ulpSel.style.display = ulps.length ? '' : 'none';
     if (this.ulpFilter && !ulps.includes(this.ulpFilter)) this.ulpFilter = '';
     const list = this.systemsFiltered();
     const cur = Store.system();
     const opts = list.map(s => `<option value="${s.id}" ${s.id === Store.current ? 'selected' : ''}>${esc(s.name)}${!this.ulpFilter && s.ulp ? ` (${esc(s.ulp)})` : ''}</option>`);
     if (cur && !list.some(s => s.id === cur.id)) opts.unshift(`<option value="${cur.id}" selected>${esc(cur.name)}</option>`);
-    sel.innerHTML = opts.join('') + '<option value="__new">＋ Sistem baru…</option>';
+    // sistem dari daftar referensi yang belum punya data
+    const have = new Set(Store.systems.map(s => s.sistem).filter(Boolean));
+    const refs = SistemRef.systemsOf(this.ulpFilter).filter(r => !have.has(r.sistem));
+    const refOpts = refs.map(r => `<option value="__ref:${esc(r.sistem)}">${esc(r.sistem)}${!this.ulpFilter ? ` (${esc(r.ulp)})` : ''} — belum ada data</option>`);
+    sel.innerHTML = opts.join('') + (refOpts.length ? `<optgroup label="Belum diimport (${refOpts.length})">${refOpts.join('')}</optgroup>` : '') + '<option value="__new">＋ Sistem baru…</option>';
     sel.value = Store.current;
     document.getElementById('dlAssets').innerHTML = Store.data.assets.map(a => `<option value="${esc(a.code)}">${esc(ASSET_TYPES[a.type]?.short)} ${esc(a.name)}</option>`).join('');
     document.getElementById('dlFeeders').innerHTML = Store.feeders().map(f => `<option value="${esc(f)}">`).join('');
