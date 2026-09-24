@@ -263,6 +263,7 @@ const DataView = {
     el.innerHTML = `
       <div class="cards2">
         ${GisImport.card()}
+        ${EquipImport.card()}
         <section class="card">
           <h3>Sistem</h3>
           <ul class="syslist">${Store.systems.map(s => `<li class="${s.id === Store.current ? 'cur' : ''}">
@@ -346,6 +347,7 @@ const DataView = {
         </section>
       </div>`;
     GisImport.bind(el);
+    EquipImport.bind(el);
     el.querySelector('#pName').onchange = e => Store.mutate(() => { Store.data.meta.name = e.target.value.trim() || 'Sistem'; }, 'meta');
     el.querySelector('#bSysNew').onclick = () => App.newSystem();
     el.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => Store.switchTo(b.dataset.sys));

@@ -93,8 +93,9 @@ const SLD = {
       }
       case 'PTM': return `<rect x="-13" y="-13" width="26" height="26" fill="#fff" stroke="${K}" stroke-width="2"/>
         <text y="4" text-anchor="middle" font-size="9" font-weight="700" fill="${K}">kWh</text>${scada}`;
-      case 'REC': return `<rect x="-13" y="-13" width="26" height="26" fill="${fill}" stroke="${K}" stroke-width="2"/>
-        <text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${txt}">R</text>${scada}`;
+      case 'REC': { const t = a.sub === 'cb' ? 'CB' : a.sub === 'pmcb' ? 'PM' : 'R';
+        return `<rect x="-13" y="-13" width="26" height="26" fill="${fill}" stroke="${K}" stroke-width="2"/>
+        <text y="4.5" text-anchor="middle" font-size="${t.length > 1 ? 10 : 13}" font-weight="700" fill="${txt}">${t}</text>${scada}`; }
       case 'LBS': {
         if (a.sub === 'sect') return `<rect x="-13" y="-13" width="26" height="26" fill="${fill}" stroke="${K}" stroke-width="2"/><text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${txt}">S</text>${scada}`;
         if (a.sub === 'motor') return `<circle r="13" fill="${fill}" stroke="${K}" stroke-width="2"/><text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${txt}">M</text>${scada}`;
