@@ -15,7 +15,7 @@ const MapView = {
   opts: { type: 'GD', autoConnect: false, conductor: 'AAAC-150', feeder: '', level: 'JTM', allowDrag: false },
 
   init() {
-    const map = this.map = L.map('map', { zoomControl: true, doubleClickZoom: false }).setView([-2.5, 118], 5);
+    const map = this.map = L.map('map', { zoomControl: true, doubleClickZoom: false, preferCanvas: true }).setView([-2.5, 118], 5);
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { maxZoom: 21, maxNativeZoom: 19, attribution: '© OpenStreetMap' });
     const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -25,7 +25,8 @@ const MapView = {
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 21, maxNativeZoom: 19 }),
     ]);
     osm.addTo(map);
-    L.control.layers({ 'Jalan (OSM)': osm, 'Satelit': sat, 'Satelit + Label': hyb }).addTo(map);
+    this.custLayer = L.layerGroup().addTo(map);
+    L.control.layers({ 'Jalan (OSM)': osm, 'Satelit': sat, 'Satelit + Label': hyb }, { 'Pelanggan (APP)': this.custLayer }).addTo(map);
     L.control.scale({ imperial: false }).addTo(map);
 
     this.lineLayer = L.layerGroup().addTo(map);
@@ -81,7 +82,7 @@ const MapView = {
   iconFor(a) {
     const T = ASSET_TYPES[a.type] || ASSET_TYPES.TIANG;
     const cls = ['mk', 'mk-' + a.type, Net.isOpen(a) ? 'open' : '', this.isSel('asset', a.id) ? 'sel' : ''].join(' ');
-    const size = a.type === 'TIANG' ? 12 : a.type === 'GI' ? 30 : 24;
+    const size = a.type === 'TIANG' ? 12 : T.source ? 30 : 24;
     return L.divIcon({
       className: 'mk-wrap',
       html: `<div class="${cls}" style="--c:${T.color};width:${size}px;height:${size}px">${a.type === 'TIANG' ? '' : T.short}</div>` +
@@ -109,6 +110,14 @@ const MapView = {
     }
     for (const a of Store.data.assets) {
       if (a.lat == null || a.lng == null) continue;
+      if (a.type === 'TIANG') {
+        const cm = L.circleMarker([a.lat, a.lng], { ...this.poleStyle(a), bubblingMouseEvents: false });
+        cm.bindTooltip(() => `<b>${esc(a.code)}</b>${a.sub === 'TR' ? ' (tiang TR)' : ''}${a.note ? '<br>' + esc(a.note) : ''}`, { direction: 'top' });
+        cm.on('click', () => this.onAssetClick(a.id));
+        cm.addTo(this.assetLayer);
+        this.markers.set(a.id, cm);
+        continue;
+      }
       const mk = L.marker([a.lat, a.lng], { icon: this.iconFor(a), draggable: this.mode === 'select' && this.opts.allowDrag, zIndexOffset: a.type === 'TIANG' ? 0 : 500 });
       mk.bindTooltip(`<b>${esc(a.code)}</b> ${esc(a.name)}<br>${esc(ASSET_TYPES[a.type]?.label)}${a.kva ? ' · ' + fmt.n(a.kva, 0) + ' kVA' : ''}`, { direction: 'top', offset: [0, -10] });
       mk.on('click', () => this.onAssetClick(a.id));
@@ -119,15 +128,32 @@ const MapView = {
       mk.addTo(this.assetLayer);
       this.markers.set(a.id, mk);
     }
+    this.renderCustomers();
     this.renderEditor();
+  },
+  poleStyle(a) {
+    const sel = this.isSel('asset', a.id), tr = a.sub === 'TR';
+    return { radius: sel ? 7 : tr ? 2.5 : 3.5, color: sel ? '#facc15' : tr ? '#64748b' : '#1e293b', weight: sel ? 3 : 1,
+      fillColor: tr ? '#cbd5e1' : '#475569', fillOpacity: 1 };
+  },
+  renderCustomers() {
+    const cs = Store.data.customers || [];
+    if (this._custCount === cs.length && this._custRef === cs) return;
+    this._custCount = cs.length; this._custRef = cs;
+    this.custLayer.clearLayers();
+    for (const c of cs) {
+      L.circleMarker([c.lat, c.lng], { radius: 2.5, color: '#b45309', weight: 1, fillColor: '#fbbf24', fillOpacity: 0.9, interactive: true, bubblingMouseEvents: true })
+        .bindTooltip(`Pelanggan ${esc(c.idpel || '-')}<br>${c.va ? fmt.n(c.va, 0) + ' VA' : 'daya ?'} · gardu ${esc(c.gd)}`)
+        .addTo(this.custLayer);
+    }
   },
   lineStyle(l) {
     const sel = this.isSel('line', l.id);
     return {
-      color: sel ? '#facc15' : feederColor(l.feeder),
+      color: sel ? '#facc15' : l.gap ? '#dc2626' : l.level === 'JTR' ? '#78716c' : feederColor(l.feeder),
       weight: sel ? 7 : l.level === 'JTR' ? 2 : 4,
       opacity: 0.9,
-      dashArray: l.level === 'JTR' ? '6 6' : (/XLPE|SKTM|N2X/i.test(l.conductor) ? '10 4 2 4' : null),
+      dashArray: l.gap ? '4 6' : l.level === 'JTR' ? '5 4' : (/XLPE|SKTM|N2X/i.test(l.conductor) ? '10 4 2 4' : null),
     };
   },
 
@@ -137,7 +163,10 @@ const MapView = {
     // perbarui tampilan elemen lama & baru saja
     [prev, this.sel].forEach(s => {
       if (!s) return;
-      if (s.kind === 'asset') { const a = Store.asset(s.id), m = this.markers.get(s.id); if (a && m) m.setIcon(this.iconFor(a)); }
+      if (s.kind === 'asset') {
+        const a = Store.asset(s.id), m = this.markers.get(s.id);
+        if (a && m) { if (m.setIcon) m.setIcon(this.iconFor(a)); else { m.setStyle(this.poleStyle(a)); m.setRadius(this.poleStyle(a).radius); } }
+      }
       else { const l = Store.line(s.id), p = this.polylines.get(s.id); if (l && p) { p.setStyle(this.lineStyle(l)); if (this.isSel('line', l.id)) p.bringToFront(); } }
     });
     if (kind === 'asset' && id) this.lastAssetId = id;
@@ -354,8 +383,8 @@ const MapView = {
     const T = ASSET_TYPES[a.type] || {};
     const lines = Store.linesOf(a.id);
     let near = '';
-    if (a.type !== 'GI') {
-      const res = Net.nearest(a.id, ['GI', 'GH']);
+    if (!T.source) {
+      const res = Net.nearest(a.id, ['PLTD', 'GI', 'GH'].filter(t => Store.data.assets.some(x => x.type === t)));
       near = res.map(r => `<tr><td>${ASSET_TYPES[r.type].short} terdekat</td><td>${r.net
         ? `<a href="#" data-sel="asset:${r.net.a.id}">${esc(r.net.a.code)}</a> via jaringan <b>${fmt.m(r.net.d)}</b>`
         : '<span class="muted">tidak tersambung</span>'}${r.air ? `<br><span class="muted">garis lurus: ${esc(r.air.a.code)} ${fmt.m(r.air.d)}</span>` : ''}</td></tr>`).join('');
@@ -375,10 +404,18 @@ const MapView = {
       </div>
       ${T.load ? `<div class="grid2">
         <label class="f"><span>Kapasitas (kVA)</span><input data-k="kva" data-num inputmode="decimal" value="${a.kva ?? ''}"></label>
+        <label class="f"><span>Beban (kVA) ukur/estimasi</span><input data-k="loadKva" data-num inputmode="decimal" value="${a.loadKva ?? ''}" placeholder="atau isi % beban →"></label>
         <label class="f"><span>Beban terukur (%)</span><input data-k="loadPct" data-num inputmode="decimal" value="${a.loadPct ?? ''}" placeholder="default ${Store.data.params.loadPct}%"></label>
+        ${num(a.kva) && num(a.loadKva) != null ? `<div class="f"><span>Pembebanan trafo</span><b class="${a.loadKva / a.kva > 1 ? 'bad' : a.loadKva / a.kva > 0.8 ? 'warn' : ''}">${fmt.n(a.loadKva / a.kva * 100, 0)} %</b></div>` : ''}
         <label class="f"><span>Merk</span><input data-k="merk" value="${esc(a.merk)}"></label>
         <label class="f"><span>Tahun</span><input data-k="tahun" value="${esc(a.tahun)}"></label>
       </div>` : ''}
+      ${a.nCust != null ? `<table class="kv">
+        <tr><td>Pelanggan (APP)</td><td><b>${fmt.n(a.nCust, 0)}</b> · daya tersambung ${fmt.n(a.connKva, 1)} kVA</td></tr>
+        ${a.loadSrc ? `<tr><td>Beban</td><td>${esc(a.loadSrc)}</td></tr>` : ''}
+        ${a.custMaxM != null ? `<tr><td>Pelanggan terjauh</td><td class="${a.custMaxM > 500 ? 'warn' : ''}">${fmt.m(a.custMaxM)} (garis lurus)</td></tr>` : ''}
+        ${a.jtrGisM != null ? `<tr><td>Panjang JTR (GIS)</td><td>${fmt.m(a.jtrGisM)}</td></tr>` : ''}
+      </table>` : ''}
       ${T.sw ? `<label class="f"><span>Status operasi</span><select data-k="status"><option value="NC" ${a.status !== 'NO' ? 'selected' : ''}>NC — Normally Close (masuk)</option><option value="NO" ${a.status === 'NO' ? 'selected' : ''}>NO — Normally Open (titik buka)</option></select></label>` : ''}
       <label class="f"><span>Keterangan</span><textarea data-k="note" rows="2">${esc(a.note)}</textarea></label>
       <div class="btnrow">
@@ -413,6 +450,7 @@ const MapView = {
         <label class="f"><span>Panjang di peta</span><input disabled value="${Math.round(geo)} m"></label>
         <label class="f"><span>Panjang ukur (m)</span><input data-k="lengthM" data-num inputmode="decimal" value="${l.lengthM ?? ''}" placeholder="opsional"></label>
       </div>
+      ${l.auto ? `<div class="warnbox small">Ruas ini <b>hasil rekonstruksi otomatis</b>${l.gap ? ' dan <b>panjangnya mencurigakan</b>' : ''} — verifikasi di lapangan/citra satelit, lalu hapus atau perbaiki bila salah.</div>` : ''}
       <p class="hint">Titik belok: ${(l.path || []).length}. Isi "panjang ukur" bila ada data meteran/as-built — nilai ini dipakai di perhitungan.</p>
       <label class="f"><span>Keterangan</span><textarea data-k="note" rows="2">${esc(l.note)}</textarea></label>
       <div class="btnrow">
@@ -445,6 +483,8 @@ const MapView = {
       <table class="kv">
         <tr><td>Total aset</td><td><b>${d.assets.length}</b></td></tr>
         <tr><td>Total saluran</td><td><b>${d.lines.length}</b> ruas · ${fmt.m(d.lines.reduce((s, l) => s + Store.lineLength(l), 0))}</td></tr>
+        ${(d.customers || []).length ? `<tr><td>Pelanggan (APP)</td><td><b>${fmt.n(d.customers.length, 0)}</b></td></tr>` : ''}
+        ${d.lines.some(l => l.gap) ? `<tr><td>Ruas perlu dicek</td><td class="bad">${d.lines.filter(l => l.gap).length} ruas (merah putus-putus)</td></tr>` : ''}
         <tr><td>Kapasitas trafo</td><td><b>${fmt.n(d.assets.filter(a => a.type === 'GD').reduce((s, a) => s + (num(a.kva) || 0), 0), 0)} kVA</b></td></tr>
       </table>
       <h4>Panjang per penyulang</h4>

@@ -37,11 +37,13 @@ class MinHeap {
 const Net = {
   isOpen(a) { return !!(a && ASSET_TYPES[a.type]?.sw && a.status === 'NO'); },
 
-  graph() {
+  // jtmOnly = abaikan JTR (untuk SLD & analisis tegangan menengah)
+  graph(opts = {}) {
     const g = new Map();
     Store.data.assets.forEach(a => g.set(a.id, []));
     Store.data.lines.forEach(l => {
       if (!g.has(l.from) || !g.has(l.to) || l.from === l.to) return;
+      if (opts.jtmOnly && l.level === 'JTR') return;
       const len = Store.lineLength(l);
       g.get(l.from).push({ to: l.to, line: l, len });
       g.get(l.to).push({ to: l.from, line: l, len });
@@ -51,7 +53,7 @@ const Net = {
 
   // Dijkstra dari src. respectOpen = tidak melewati saklar berstatus NO.
   shortest(src, opts = {}) {
-    const g = opts.graph || this.graph();
+    const g = opts.graph || this.graph(opts);
     const dist = new Map([[src, 0]]), prev = new Map(), done = new Set();
     const pq = new MinHeap();
     pq.push([0, src]);
@@ -98,7 +100,7 @@ const Net = {
     nodes.forEach(n => n.line && treeLines.add(n.line.id));
     const ties = [];
     Store.data.lines.forEach(l => {
-      if (treeLines.has(l.id)) return;
+      if (treeLines.has(l.id) || (opts.jtmOnly && l.level === 'JTR')) return;
       const inF = nodes.has(l.from), inT = nodes.has(l.to);
       if (inF || inT) ties.push({ line: l, a: inF ? l.from : l.to, b: inF ? l.to : l.from, bothIn: inF && inT });
     });
@@ -114,7 +116,7 @@ const Net = {
   // Analisis aliran beban sederhana (metode jatuh tegangan per seksi, beban terpusat di gardu)
   analyze(rootId) {
     const P = Store.data.params;
-    const t = this.tree(rootId, { respectOpen: true });
+    const t = this.tree(rootId, { respectOpen: true, jtmOnly: true });
     if (!t.root) return null;
     const V = num(P.kv) || 20, pf = Math.min(1, Math.max(0.1, num(P.pf) || 0.85));
     const sinf = Math.sqrt(1 - pf * pf);
@@ -127,8 +129,11 @@ const Net = {
       const kva = isLoad ? (num(a.kva) || 0) : 0;
       const lp = num(a.loadPct) ?? (num(P.loadPct) ?? 60);
       n.ownCap = kva;
-      n.ownLoad = kva * lp / 100;
-      if (isLoad && !kva) warn.add(`${a.code}: kapasitas kVA belum diisi`);
+      // beban hasil ukur / estimasi (kVA) diutamakan, jika kosong pakai kapasitas × % beban
+      const lk = isLoad ? num(a.loadKva) : null;
+      n.ownLoad = lk != null ? lk : kva * lp / 100;
+      if (isLoad && !kva && lk == null) warn.add(`${a.code}: kapasitas kVA & beban belum diisi (dianggap 0)`);
+      else if (isLoad && !kva) warn.add(`${a.code}: kapasitas kVA belum diisi (beban memakai estimasi ${fmt.n(lk, 1)} kVA)`);
       n.load = n.ownLoad + n.children.reduce((s, c) => s + c.load, 0);
       n.cap = n.ownCap + n.children.reduce((s, c) => s + c.cap, 0);
     }

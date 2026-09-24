@@ -3,7 +3,7 @@
  * IO: import/ekspor Excel, CSV, KML/KMZ (Google Earth), GeoJSON, backup JSON
  * ============================================================ */
 
-const ASSET_COLS = ['jenis', 'kode', 'nama', 'penyulang', 'lat', 'lng', 'kva', 'beban_persen', 'status', 'merk', 'tahun', 'keterangan'];
+const ASSET_COLS = ['jenis', 'kode', 'nama', 'penyulang', 'lat', 'lng', 'kva', 'beban_kva', 'jumlah_pelanggan', 'beban_persen', 'status', 'merk', 'tahun', 'keterangan'];
 const LINE_COLS = ['dari_kode', 'ke_kode', 'penyulang', 'level', 'penghantar', 'panjang_m', 'panjang_peta_m', 'keterangan', 'jalur'];
 
 const ALIAS = {
@@ -14,6 +14,7 @@ const ALIAS = {
   lat: ['lat', 'latitude', 'lintang', 'y'],
   lng: ['lng', 'lon', 'long', 'longitude', 'bujur', 'x'],
   kva: ['kva', 'daya', 'kapasitas', 'daya_kva', 'kapasitas_kva'],
+  beban_kva: ['beban_kva', 'beban_(kva)', 'load_kva'],
   beban_persen: ['beban_persen', 'beban', 'beban_%', 'load', 'persen_beban', 'pembebanan'],
   status: ['status', 'kondisi_operasi', 'no/nc'],
   merk: ['merk', 'merek', 'brand', 'pabrikan'],
@@ -36,6 +37,7 @@ function pick(row, key) {
 function guessType(text) {
   const s = ' ' + String(text || '').toUpperCase() + ' ';
   if (ASSET_TYPES[s.trim()]) return s.trim();
+  if (/PLTD|PLTMG|PLTS|PEMBANGKIT|GENSET/.test(s)) return 'PLTD';
   if (/\bGI\b|GARDU INDUK/.test(s)) return 'GI';
   if (/\bGH\b|GARDU HUBUNG/.test(s)) return 'GH';
   if (/RECLOSER|\bREC\b|\bPMT\b|\bRC\b/.test(s)) return 'REC';
@@ -115,7 +117,7 @@ const IO = {
   assetRows() {
     return Store.data.assets.map(a => ({
       jenis: a.type, kode: a.code, nama: a.name, penyulang: a.feeder, lat: a.lat, lng: a.lng,
-      kva: num(a.kva), beban_persen: num(a.loadPct), status: ASSET_TYPES[a.type]?.sw ? a.status : '',
+      kva: num(a.kva), beban_kva: num(a.loadKva), jumlah_pelanggan: a.nCust ?? '', beban_persen: num(a.loadPct), status: ASSET_TYPES[a.type]?.sw ? a.status : '',
       merk: a.merk, tahun: a.tahun, keterangan: a.note,
     }));
   },
@@ -139,7 +141,7 @@ const IO = {
         const status = /\bNO\b|OPEN|BUKA/i.test(pick(r, 'status')) ? 'NO' : 'NC';
         const v = {
           lat, lng, name: String(pick(r, 'nama')), feeder: String(pick(r, 'penyulang')),
-          kva: num(pick(r, 'kva')), loadPct: num(pick(r, 'beban_persen')), status,
+          kva: num(pick(r, 'kva')), loadKva: num(pick(r, 'beban_kva')), loadPct: num(pick(r, 'beban_persen')), status,
           merk: String(pick(r, 'merk')), tahun: String(pick(r, 'tahun')), note: String(pick(r, 'keterangan')),
         };
         const ex = code && Store.byCode(code);

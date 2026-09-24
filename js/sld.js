@@ -9,8 +9,9 @@ const SLD = {
   vb: null, size: null, rootId: null,
 
   build(rootId, opt) {
-    const t = Net.tree(rootId, { respectOpen: opt.stopOpen });
+    const t = Net.tree(rootId, { respectOpen: opt.stopOpen, jtmOnly: !opt.showJTR });
     if (!t.root) return null;
+    if (opt.collapse) this.collapse(t);
     // tinggi subtree (untuk menentukan trunk) — iteratif pasca-urut
     for (let i = t.order.length - 1; i >= 0; i--) {
       const n = t.order[i];
@@ -48,9 +49,33 @@ const SLD = {
     return t;
   },
 
+  // gabungkan rangkaian tiang lurus (tiang dengan satu cabang lanjut) menjadi satu ruas
+  collapse(t) {
+    const tieAt = new Set(t.ties.map(x => x.a));
+    const keep = n => !(n.asset.type === 'TIANG' && n.children.length === 1 && !tieAt.has(n.id));
+    const stack = [t.root];
+    while (stack.length) {
+      const n = stack.pop();
+      n.children = n.children.map(c => {
+        let len = Store.lineLength(c.line), first = c.line, k = 1;
+        while (!keep(c)) { c = c.children[0]; len += Store.lineLength(c.line); k++; }
+        if (k > 1) c.line = { id: 'v' + c.id, level: first.level, conductor: first.conductor, feeder: first.feeder, lengthM: len, spans: k, gap: first.gap };
+        c.parent = n.id;
+        return c;
+      });
+      stack.push(...n.children);
+    }
+    const order = [], st = [t.root];
+    while (st.length) { const n = st.pop(); order.push(n); for (let i = n.children.length - 1; i >= 0; i--) st.push(n.children[i]); }
+    t.order = order;
+  },
+
   symbol(a) {
     const T = ASSET_TYPES[a.type] || ASSET_TYPES.TIANG, c = T.color, open = Net.isOpen(a);
     switch (a.type) {
+      case 'PLTD': return `<circle r="22" fill="#fff" stroke="${c}" stroke-width="2.5"/>
+        <path d="M-11 0c3.5-9 7.5-9 11 0s7.5 9 11 0" fill="none" stroke="${c}" stroke-width="2.5"/>
+        <text y="-26" text-anchor="middle" font-weight="700" font-size="11" fill="${c}">PLTD</text>`;
       case 'GI': return `<rect x="-30" y="-22" width="60" height="44" rx="3" fill="#fff" stroke="${c}" stroke-width="2.5"/>
         <line x1="30" y1="-16" x2="30" y2="16" stroke="${c}" stroke-width="6"/>
         <text y="5" text-anchor="middle" font-weight="700" font-size="15" fill="${c}">GI</text>`;
@@ -74,7 +99,7 @@ const SLD = {
   },
 
   render(rootId, opt = {}) {
-    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, ...opt };
+    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, collapse: true, showJTR: false, ...opt };
     const t = this.build(rootId, opt);
     if (!t) return null;
     const { gapX, gapY, pad } = this;
@@ -98,7 +123,7 @@ const SLD = {
           const mx = (sx + x) / 2;
           const feederTag = (!p.parent && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
           labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len">${fmt.m(Store.lineLength(l))}</text>
-            <text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(l.conductor)}</text>`);
+            <text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(l.conductor)}${l.spans ? ` · ${l.spans} gawang` : ''}</text>`);
         }
       }
       const a = n.asset;

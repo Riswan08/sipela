@@ -4,10 +4,10 @@
  * ============================================================ */
 
 const SldView = {
-  rootId: null, opt: { stopOpen: true, showLen: true, showName: true, hidePoles: false },
+  rootId: null, opt: { stopOpen: true, showLen: true, showName: true, hidePoles: true, collapse: true, showJTR: false },
   render() {
     const el = document.getElementById('view-sld');
-    const src = AnalysisView.sources();
+    const src = [...AnalysisView.sources(), ...Store.data.assets.filter(a => a.type === 'GD').sort((a, b) => String(a.code).localeCompare(b.code))];
     if (!this.rootId || !Store.asset(this.rootId)) this.rootId = src[0]?.id || Store.data.assets[0]?.id || null;
     const cur = Store.asset(this.rootId);
     const inList = src.some(a => a.id === this.rootId);
@@ -19,12 +19,14 @@ const SldView = {
         <label class="chk"><input type="checkbox" data-so="stopOpen" ${this.opt.stopOpen ? 'checked' : ''}> Berhenti di saklar NO</label>
         <label class="chk"><input type="checkbox" data-so="showLen" ${this.opt.showLen ? 'checked' : ''}> Panjang & penghantar</label>
         <label class="chk"><input type="checkbox" data-so="showName" ${this.opt.showName ? 'checked' : ''}> Nama</label>
+        <label class="chk"><input type="checkbox" data-so="collapse" ${this.opt.collapse ? 'checked' : ''}> Ringkas tiang lurus</label>
         <label class="chk"><input type="checkbox" data-so="hidePoles" ${this.opt.hidePoles ? 'checked' : ''}> Sembunyikan label tiang</label>
+        <label class="chk"><input type="checkbox" data-so="showJTR" ${this.opt.showJTR ? 'checked' : ''}> Tampilkan JTR</label>
         <span class="spacer"></span>
         <button class="btn" onclick="SLD.zoom(0.8)">＋</button><button class="btn" onclick="SLD.zoom(1.25)">－</button><button class="btn" onclick="SLD.fit()">Pas</button>
         <button class="btn" onclick="SLD.exportSvg()">⬇ SVG</button><button class="btn" onclick="SLD.exportPng()">⬇ PNG</button><button class="btn" onclick="SLD.print()">🖨 Cetak</button>
       </div>
-      <div id="sldInfo" class="sld-info muted">Scroll untuk zoom, geser untuk pan, klik simbol untuk info.</div>
+      <div id="sldInfo" class="sld-info muted">${Store.data.assets.some(a => ASSET_TYPES[a.type]?.source) ? 'Scroll untuk zoom, geser untuk pan, klik simbol untuk info.' : '⚠ Belum ada PLTD/GI sebagai sumber — SLD sementara digambar dari aset terpilih. Tambahkan PLTD di peta lalu sambungkan ke jaringan.'}</div>
       <div id="sldWrap"></div>
       <div class="legend">${Object.entries(ASSET_TYPES).map(([k, T]) => `<span><svg width="34" height="30" viewBox="-17 -15 34 30"><line x1="-17" x2="17" stroke="#1f2937" stroke-width="2"/>${SLD.symbol({ type: k, status: 'NC' })}</svg>${T.label}</span>`).join('')}
         <span><svg width="34" height="30" viewBox="-17 -15 34 30"><line x1="-17" x2="17" stroke="#1f2937" stroke-width="2"/>${SLD.symbol({ type: 'LBS', status: 'NO' })}</svg>Saklar NO</span>

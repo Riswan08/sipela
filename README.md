@@ -23,11 +23,27 @@ lalu buka http://localhost:8765
 
 | Menu | Fungsi |
 |---|---|
-| **Peta** | Tambah aset (GI, GH, Gardu/Trafo, Recloser, LBS, FCO, Pelanggan TM, Tiang) dengan klik peta atau **GPS saat survei**. Gambar saluran mengikuti jalur (titik belok) dan **panjangnya dihitung otomatis**. Ada layer satelit untuk menelusuri jalur tiang, plus alat ukur jarak. |
+| **Peta** | Tambah aset (PLTD, GI, GH, Gardu/Trafo, Recloser, LBS, FCO, Pelanggan TM, Tiang) dengan klik peta atau **GPS saat survei**. Gambar saluran mengikuti jalur (titik belok) dan **panjangnya dihitung otomatis**. Ada layer satelit untuk menelusuri jalur tiang, plus alat ukur jarak. |
 | **SLD** | **Single Line Diagram otomatis** dari topologi: trunk lurus, cabang turun, titik buka (NO) & tie antar penyulang ditandai. Bisa zoom/geser, ekspor SVG/PNG, dan cetak A3. |
 | **Aset / Saluran** | Tabel yang bisa difilter dan diurutkan, rekap panjang (kms) per penyulang & penghantar, ekspor CSV. |
 | **Analisis** | Beban hilir, arus, % KHA, **drop tegangan kumulatif**, dan estimasi susut per seksi. **Jarak antar aset** lewat jaringan maupun garis lurus, dan jarak dari satu aset ke semua aset sejenis (misalnya trafo → GH terdekat). |
 | **Data** | Import **Excel / CSV / KML / KMZ (Google Earth)**, ekspor Excel / KML / GeoJSON (QGIS), backup/pulihkan JSON, tabel impedansi penghantar, dan parameter. |
+
+## Import data GIS PLN (ArcGIS "Table To Excel")
+
+Di tab **Data → Import data GIS PLN**, pilih file .xlsx hasil ekspor GIS (sheet TRAFO_DISTRIBUSI, TIANG, APP, JTM, JTR, boleh sebagian). Sheet dikenali dari kolomnya, jadi bisa dipakai untuk sistem lain yang diekspor dengan cara yang sama.
+
+Data GIS biasanya belum lengkap untuk kebutuhan perencanaan, jadi aplikasi melengkapinya secara otomatis:
+
+| Kondisi data GIS | Yang dilakukan aplikasi |
+|---|---|
+| JTM tanpa geometri | Tiang TM disambung dengan *Minimum Spanning Tree* (jalur terpendek antar tiang). Ruas yang lebih panjang dari batas ditandai **merah putus-putus** untuk dicek. |
+| Gardu tanpa koordinat | Posisi diestimasi dari tiang TR nomor 01 tiap jurusan, lalu ditempelkan ke tiang TM terdekat (gardu portal). |
+| Kapasitas trafo kosong | Beban diestimasi dari Σ daya kontrak pelanggan × faktor kebersamaan (default 0,4). |
+| Tiang TR bernomor | JTR dirangkai sesuai urutan nomor tiang per jurusan. Jenis kabel diambil dari sheet JTR. |
+| Titik pelanggan (APP) | Ditampilkan sebagai layer *Pelanggan (APP)*, dengan jumlah pelanggan, daya tersambung, dan jarak pelanggan terjauh per gardu. |
+
+Setelah import, **tambahkan PLTD/GI sebagai sumber** dan sambungkan ke tiang TM awal penyulang. SLD otomatis meringkas rangkaian tiang lurus menjadi satu ruas (dengan jumlah gawang).
 
 ## Alur kerja yang disarankan
 

@@ -9,7 +9,8 @@ const LEGACY_KEYS = ['sipersis.v1'];
 // Jenis aset jaringan distribusi. sw = peralatan hubung (punya status NO/NC),
 // load = punya kapasitas kVA (dipakai di analisis beban & drop tegangan).
 const ASSET_TYPES = {
-  GI:    { label: 'Gardu Induk',              short: 'GI',  color: '#b91c1c' },
+  PLTD:  { label: 'PLTD / Pembangkit',        short: 'PL',  color: '#9f1239', source: true },
+  GI:    { label: 'Gardu Induk',              short: 'GI',  color: '#b91c1c', source: true },
   GH:    { label: 'Gardu Hubung',             short: 'GH',  color: '#7c3aed' },
   GD:    { label: 'Gardu Distribusi / Trafo', short: 'GD',  color: '#0369a1', load: true },
   REC:   { label: 'Recloser / PMT',           short: 'R',   color: '#c2410c', sw: true },
@@ -44,6 +45,7 @@ function emptyData() {
     meta: { name: 'Proyek Baru', created: new Date().toISOString(), updated: null },
     assets: [],
     lines: [],
+    customers: [],   // titik pelanggan (APP) dari GIS: {lat,lng,gd,idpel,va,feeder}
     conductors: JSON.parse(JSON.stringify(DEFAULT_CONDUCTORS)),
     params: { ...DEFAULT_PARAMS },
   };
@@ -125,6 +127,7 @@ const Store = {
       meta: { ...e.meta, ...(d.meta || {}) },
       assets: Array.isArray(d.assets) ? d.assets : [],
       lines: Array.isArray(d.lines) ? d.lines : [],
+      customers: Array.isArray(d.customers) ? d.customers : [],
       conductors: Array.isArray(d.conductors) && d.conductors.length ? d.conductors : e.conductors,
       params: { ...e.params, ...(d.params || {}) },
     };
@@ -138,12 +141,14 @@ const Store = {
   emit(reason) { this.listeners.forEach(f => f(reason)); },
   snapshot() {
     this.undoStack.push(JSON.stringify(this.data));
-    if (this.undoStack.length > 50) this.undoStack.shift();
+    if (this.undoStack.length > 30) this.undoStack.shift();
   },
   // semua perubahan data lewat sini agar bisa di-undo & tersimpan otomatis
   mutate(fn, reason = 'change') {
     this.snapshot();
+    this._idx = null;
     const r = fn(this.data);
+    this._idx = null;
     this.persist();
     this.emit(reason);
     return r;
@@ -152,6 +157,7 @@ const Store = {
     const s = this.undoStack.pop();
     if (!s) return false;
     this.data = JSON.parse(s);
+    this._idx = null;
     this.persist();
     this.emit('undo');
     return true;
@@ -159,7 +165,10 @@ const Store = {
   replace(d) { this.mutate(() => { this.data = this.normalize(d); }, 'replace'); },
 
   uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
-  asset(id) { return this.data.assets.find(a => a.id === id); },
+  asset(id) {
+    if (!this._idx) this._idx = new Map(this.data.assets.map(a => [a.id, a]));
+    return this._idx.get(id) || this.data.assets.find(a => a.id === id);
+  },
   line(id) { return this.data.lines.find(l => l.id === id); },
   byCode(code) {
     const c = String(code ?? '').trim().toLowerCase();

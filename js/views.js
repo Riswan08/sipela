@@ -25,7 +25,9 @@ const AssetsView = {
   render() {
     const el = document.getElementById('view-assets');
     const T = ASSET_TYPES;
-    let rows = Store.data.assets.map(a => ({ ...a, typeLabel: T[a.type]?.short, kvaN: num(a.kva), lpN: num(a.loadPct), nLines: Store.linesOf(a.id).length }));
+    const deg = new Map();
+    Store.data.lines.forEach(l => { deg.set(l.from, (deg.get(l.from) || 0) + 1); deg.set(l.to, (deg.get(l.to) || 0) + 1); });
+    let rows = Store.data.assets.map(a => ({ ...a, typeLabel: T[a.type]?.short, kvaN: num(a.kva), lpN: num(a.loadPct), loadKvaN: num(a.loadKva), nLines: deg.get(a.id) || 0 }));
     const q = this.q.toLowerCase();
     rows = rows.filter(r => (!this.type || r.type === this.type) && (!this.feeder || r.feeder === this.feeder) &&
       (!q || [r.code, r.name, r.feeder, r.note, r.merk].some(v => String(v || '').toLowerCase().includes(q))));
@@ -37,6 +39,8 @@ const AssetsView = {
       { k: 'name', t: 'Nama / Lokasi' },
       { k: 'feeder', t: 'Penyulang' },
       { k: 'kvaN', t: 'kVA', num: 1, f: r => fmt.n(r.kvaN, 0) },
+      { k: 'nCust', t: 'Plg', num: 1, f: r => r.nCust != null ? fmt.n(r.nCust, 0) : '' },
+      { k: 'loadKvaN', t: 'Beban kVA', num: 1, f: r => r.loadKvaN != null ? fmt.n(r.loadKvaN, 1) : '' },
       { k: 'lpN', t: 'Beban %', num: 1, f: r => r.lpN == null ? '' : `<span class="${r.lpN > 100 ? 'bad' : r.lpN > 80 ? 'warn' : ''}">${fmt.n(r.lpN, 0)}</span>` },
       { k: 'status', t: 'Status', f: r => T[r.type]?.sw ? (r.status === 'NO' ? '<span class="bad">NO</span>' : 'NC') : '' },
       { k: 'lat', t: 'Lat', num: 1, f: r => fmt.n(r.lat, 6) },
@@ -85,7 +89,7 @@ const LinesView = {
     const cols = [
       { k: 'from', t: 'Dari', f: r => `<b>${esc(r.from)}</b>` }, { k: 'to', t: 'Ke', f: r => `<b>${esc(r.to)}</b>` },
       { k: 'feeder', t: 'Penyulang', f: r => r.feeder ? `<span class="sw" style="background:${feederColor(r.feeder)}"></span>${esc(r.feeder)}` : '' },
-      { k: 'level', t: 'Level' }, { k: 'conductor', t: 'Penghantar', f: r => Store.conductor(r.conductor) ? esc(r.conductor) : `<span class="warn">${esc(r.conductor)} ?</span>` },
+      { k: 'level', t: 'Level' }, { k: 'conductor', t: 'Penghantar', f: r => Store.conductor(r.conductor) || r.level === 'JTR' ? esc(r.conductor) : `<span class="warn">${esc(r.conductor)} ?</span>` },
       { k: 'len', t: 'Panjang (m)', num: 1, f: r => fmt.n(r.len, 0) + (r.manual ? ' <small class="muted">ukur</small>' : '') },
       { k: 'geo', t: 'Di peta (m)', num: 1, f: r => fmt.n(r.geo, 0) },
       { k: 'note', t: 'Keterangan' },
@@ -114,7 +118,7 @@ const LinesView = {
 const AnalysisView = {
   rootId: null, result: null, distA: '', distB: '', fromCode: '', fromType: 'GD',
   sources() {
-    const order = ['GI', 'GH', 'REC', 'LBS'];
+    const order = ['PLTD', 'GI', 'GH', 'REC', 'LBS'];
     return Store.data.assets.filter(a => order.includes(a.type)).sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || String(a.code).localeCompare(b.code));
   },
   render() {
@@ -134,7 +138,8 @@ const AnalysisView = {
             <label class="f sm"><span>Batas drop %</span><input data-p="dropLimit" value="${P.dropLimit}"></label>
             <button class="btn primary" id="anRun">Hitung</button>
           </div>
-          <div id="anOut"><p class="hint">Pilih sumber (GI/GH/Recloser) lalu klik <b>Hitung</b>. Perhitungan berhenti di saklar berstatus NO.</p></div>
+          <label class="chk"><input type="checkbox" id="anPoles" ${this.showPoles ? 'checked' : ''}> Tampilkan tiang di tabel hasil</label>
+          <div id="anOut"><p class="hint">Pilih sumber (PLTD/GI/GH/Recloser) lalu klik <b>Hitung</b>. Perhitungan hanya pada JTM dan berhenti di saklar berstatus NO.</p></div>
         </section>
         <section class="card">
           <h3>Jarak antar aset</h3>
@@ -156,6 +161,7 @@ const AnalysisView = {
     el.querySelector('#anRoot').onchange = e => { this.rootId = e.target.value; };
     el.querySelectorAll('[data-p]').forEach(i => i.onchange = () => Store.mutate(() => { Store.data.params[i.dataset.p] = num(i.value) ?? Store.data.params[i.dataset.p]; }, 'params'));
     el.querySelector('#anRun').onclick = () => this.run();
+    el.querySelector('#anPoles').onchange = e => { this.showPoles = e.target.checked; if (this.result) this.run(); };
     el.querySelector('#dRun').onclick = () => { this.distA = el.querySelector('#dA').value; this.distB = el.querySelector('#dB').value; this.dist(); };
     el.querySelector('#fRun').onclick = () => { this.fromCode = el.querySelector('#fA').value; this.fromType = el.querySelector('#fT').value; this.distAll(); };
     if (this.result) this.run();
@@ -169,6 +175,7 @@ const AnalysisView = {
     if (!r) { out.innerHTML = '<p class="bad">Sumber tidak valid.</p>'; return; }
     const S = r.summary, P = Store.data.params, lim = num(P.dropLimit) ?? 5;
     const rows = r.nodes.filter(n => n.parent);
+    const shown = this.showPoles ? rows : rows.filter(n => n.asset.type !== 'TIANG');
     const col = v => v > lim ? 'bad' : v > lim * 0.8 ? 'warn' : 'ok';
     out.innerHTML = `
       <div class="stats">
@@ -192,7 +199,8 @@ const AnalysisView = {
         { k: 'loadingPct', t: '% KHA', num: 1, f: n => `<span class="${n.loadingPct > 100 ? 'bad' : n.loadingPct > 80 ? 'warn' : ''}">${fmt.n(n.loadingPct, 1)}</span>` },
         { k: 'dropPct', t: 'Drop kumulatif %', num: 1, f: n => `<span class="${col(n.dropPct)}">${fmt.n(n.dropPct, 3)}</span>` },
         { k: 'segLossKW', t: 'Susut (kW)', num: 1, f: n => fmt.n(n.segLossKW, 2) },
-      ], rows, {}, n => `data-id="${n.id}"`)}</div>`;
+      ], shown, {}, n => `data-id="${n.id}"`)}</div>
+      ${shown.length < rows.length ? `<p class="hint">${rows.length - shown.length} tiang disembunyikan dari tabel (tetap dihitung).</p>` : ''}`;
     out.querySelectorAll('tbody tr[data-id]').forEach(tr => tr.onclick = () => App.focusAsset(tr.dataset.id));
     out.querySelector('#anMap').onclick = () => {
       const byLine = new Map(rows.map(n => [n.line.id, n.dropPct]));
@@ -254,6 +262,7 @@ const DataView = {
     const d = Store.data, P = d.params;
     el.innerHTML = `
       <div class="cards2">
+        ${GisImport.card()}
         <section class="card">
           <h3>Proyek</h3>
           <label class="f"><span>Nama proyek / unit</span><input id="pName" value="${esc(d.meta.name)}"></label>
@@ -313,6 +322,7 @@ const DataView = {
           </div>
         </section>
       </div>`;
+    GisImport.bind(el);
     el.querySelector('#pName').onchange = e => Store.mutate(() => { Store.data.meta.name = e.target.value.trim() || 'Proyek'; }, 'meta');
     el.querySelector('#bJson').onclick = () => IO.exportJson();
     el.querySelector('#bTpl').onclick = () => IO.templateExcel();
