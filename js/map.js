@@ -240,7 +240,10 @@ const MapView = {
 
   onMapClick(ll) {
     const p = [+ll.lat.toFixed(7), +ll.lng.toFixed(7)];
-    if (this.mode === 'asset') return this.placeAsset(p);
+    if (this.mode === 'asset') {
+      if (this.placing != null) return this.placePending(p);
+      return this.placeAsset(p);
+    }
     if (this.mode === 'line') {
       const near = this.snapAsset(ll);
       if (near) return this.onAssetClick(near.id);
@@ -254,6 +257,22 @@ const MapView = {
   onMove(ll) {
     this.mouse = [ll.lat, ll.lng];
     if ((this.mode === 'line' && this.draft) || (this.mode === 'measure' && this.measurePts.length)) this.renderDraft();
+  },
+
+  // penempatan peralatan dari daftar "belum bertikor"
+  startPlacing(idx) {
+    this.placing = idx;
+    this.setMode('asset');
+    const pd = Store.data.pending[idx];
+    App.toast(`Klik posisi ${pd.name} di peta, atau tempel koordinatnya di panel`);
+  },
+  placePending(p) {
+    const idx = this.placing; this.placing = null;
+    const r = EquipImport.place(idx, p);
+    if (!r) return;
+    this.select('asset', r.a.id, true);
+    App.toast(`${r.a.code}: ${r.how}`);
+    this.renderModeOpts();
   },
 
   placeAsset(p, extra = {}) {
@@ -356,6 +375,15 @@ const MapView = {
 
   renderModeOpts() {
     const el = document.getElementById('modeOpts'), o = this.opts;
+    const pend = Store.data.pending || [];
+    if (this.placing != null && !pend[this.placing]) this.placing = null;
+    const pendHtml = this.mode === 'asset' && (pend.length || this.placing != null) ? `
+      ${this.placing != null ? `<div class="placing">📍 Menempatkan <b>${esc(pend[this.placing].name)}</b> (${esc(pend[this.placing].feeder)}). Klik posisinya di peta atau tempel koordinat di bawah.
+        <button class="btn sm" id="btnPlaceCancel">Batal</button></div>` : ''}
+      <details class="coord" ${pend.length && this.placing == null ? 'open' : ''}><summary>Peralatan belum bertikor (${pend.length})</summary>
+        <ul class="pending">${pend.map((x, i) => `<li><span class="nm" title="${esc(x.name)}"><b>${esc(ASSET_TYPES[x.type]?.short)}</b> ${esc(x.name)} <small class="muted">${esc(x.feeder)}${x.zona ? ' · ' + esc(x.zona) : ''}</small></span>
+          <button class="btn sm" data-place="${i}">Tempatkan</button><button class="btn sm danger" data-unpend="${i}" title="Hapus dari daftar">✕</button></li>`).join('')}</ul>
+      </details>` : '';
     const common = `
       <div class="grid2">
         <label class="f"><span>Penghantar</span><select data-o="conductor">${this.condOptions(o.conductor)}</select></label>
@@ -372,15 +400,16 @@ const MapView = {
         <p class="hint">Klik peta untuk menaruh aset. Klik aset lain untuk menjadikannya titik sambung.</p>
         <label class="chk"><input type="checkbox" data-o="autoConnect" ${o.autoConnect ? 'checked' : ''}> Sambung otomatis dari aset terakhir${o.autoConnect && Store.asset(this.lastAssetId) ? ` (<b>${esc(Store.asset(this.lastAssetId).code)}</b>)` : ''}</label>
         ${o.autoConnect ? common : `<label class="f"><span>Penyulang</span><input data-o="feeder" list="dlFeeders" value="${esc(o.feeder)}"></label>`}
+        ${pendHtml}
         <button class="btn primary block" id="btnGpsAdd">📍 Tambah aset di posisi GPS saya</button>
-        <details class="coord" ${this.coordOpen ? 'open' : ''}><summary>Tambah lewat titik koordinat</summary>
+        <details class="coord" ${this.coordOpen || this.placing != null ? 'open' : ''}><summary>${this.placing != null ? 'Tempel koordinat peralatan' : 'Tambah lewat titik koordinat'}</summary>
           <label class="f"><span>Koordinat (lat, lng)</span><input id="coordIn" placeholder="-3.0110318, 127.9506499" autocomplete="off"></label>
           <div class="grid2">
             <label class="f"><span>Kode</span><input id="coordCode" placeholder="mis. PLTD-BUANO"></label>
             <label class="f"><span>Nama</span><input id="coordName" placeholder="mis. PLTD Buano"></label>
           </div>
           <p class="hint">Bisa tempel dari Google Maps/GIS: <code>-3,0110 127,9506</code>, <code>-3.0110, 127.9506</code>, atau DMS <code>3°0'39.7"S 127°57'2.3"E</code>.</p>
-          <button class="btn primary block" id="btnCoordAdd">Tambah ${esc(ASSET_TYPES[o.type].label)} di koordinat ini</button>
+          <button class="btn primary block" id="btnCoordAdd">${this.placing != null ? 'Tempatkan ' + esc(pend[this.placing].name) + ' di koordinat ini' : 'Tambah ' + esc(ASSET_TYPES[o.type].label) + ' di koordinat ini'}</button>
         </details>`;
     } else if (this.mode === 'line') {
       h = `<p class="hint">${this.draft
@@ -399,10 +428,14 @@ const MapView = {
     el.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { this.opts.type = b.dataset.type; this.renderModeOpts(); });
     const g = el.querySelector('#btnGpsAdd'); if (g) g.onclick = () => this.locate(true);
     const det = el.querySelector('details.coord'); if (det) det.ontoggle = () => { this.coordOpen = det.open; };
+    el.querySelectorAll('[data-place]').forEach(b => b.onclick = () => this.startPlacing(+b.dataset.place));
+    el.querySelectorAll('[data-unpend]').forEach(b => b.onclick = () => { if (confirm('Hapus dari daftar belum bertikor?')) Store.mutate(d => { d.pending.splice(+b.dataset.unpend, 1); }, 'edit'); });
+    const pc = el.querySelector('#btnPlaceCancel'); if (pc) pc.onclick = () => { this.placing = null; this.renderModeOpts(); };
     const c = el.querySelector('#btnCoordAdd');
     if (c) c.onclick = () => {
       const p = parseCoord(el.querySelector('#coordIn').value);
       if (!p) return App.toast('Koordinat tidak dikenali — pakai format "lat, lng"');
+      if (this.placing != null) { this.placePending(p); this.map.setView(p, Math.max(this.map.getZoom(), 16)); return; }
       const code = el.querySelector('#coordCode').value.trim(), name = el.querySelector('#coordName').value.trim();
       if (code && Store.byCode(code)) return App.toast(`Kode ${code} sudah dipakai aset lain`);
       this.placeAsset(p, { code, name });
@@ -574,6 +607,7 @@ const MapView = {
         <tr><td>JTM</td><td><b>${d.lines.filter(l => l.level !== 'JTR').length}</b> ruas · ${fmt.m(Object.values(feeders).reduce((s, v) => s + v, 0))}</td></tr>
         ${jtrM ? `<tr><td>JTR</td><td><b>${d.lines.filter(l => l.level === 'JTR').length}</b> ruas · ${fmt.m(jtrM)}</td></tr>` : ''}
         ${(d.customers || []).length ? `<tr><td>Pelanggan (APP)</td><td><b>${fmt.n(d.customers.length, 0)}</b></td></tr>` : ''}
+        ${(d.pending || []).length ? `<tr><td>Peralatan belum bertikor</td><td class="warn">${d.pending.length} — tempatkan lewat mode ➕ Aset</td></tr>` : ''}
         ${d.lines.some(l => l.gap) ? `<tr><td>Ruas perlu dicek</td><td class="bad">${d.lines.filter(l => l.gap).length} ruas (merah putus-putus)</td></tr>` : ''}
         <tr><td>Kapasitas trafo</td><td><b>${fmt.n(d.assets.filter(a => a.type === 'GD').reduce((s, a) => s + (num(a.kva) || 0), 0), 0)} kVA</b></td></tr>
       </table>

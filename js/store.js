@@ -245,6 +245,7 @@ const Store = {
       assets: Array.isArray(d.assets) ? d.assets : [],
       lines: Array.isArray(d.lines) ? d.lines : [],
       customers: Array.isArray(d.customers) ? d.customers : [],
+      pending: Array.isArray(d.pending) ? d.pending : [],   // peralatan dari Data Aset yang belum punya koordinat
       feederColors: d.feederColors && typeof d.feederColors === 'object' ? d.feederColors : {},
       conductors: Array.isArray(d.conductors) && d.conductors.length ? d.conductors : e.conductors,
       params: { ...e.params, ...(d.params || {}) },

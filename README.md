@@ -57,6 +57,10 @@ Pengaman rekonstruksi: tiang dengan kolom PENYULANG kosong mengikuti penyulang t
 
 Di **Data → Import peralatan**, pilih file .xlsx "Data Aset" (kolom Nama Peralatan, Penyulang, Zona, Section, Latitude/Longitude, Merk, RTU, Kondisi, Jumlah Pelanggan). Untuk sistem aktif: peralatan berkoordinat **ditempelkan ke tiang TM terdekat** (≤ 80 m, tiang berubah jadi peralatan sehingga langsung masuk SLD), yang lebih jauh dibuat sebagai aset baru dan disambung otomatis (≤ 1.500 m). Baris **CB F. …** membentuk aset **Gardu Induk** dan outgoing tiap penyulang. RTU "Ada" → Key Point SCADA; LBS ber-RTU → motorised; PMCB dan CB memakai simbol recloser bertuliskan PM/CB. Zona/section, merk, kondisi, dan jumlah pelanggan hilir tersimpan di catatan aset.
 
+Peralatan **tanpa koordinat** masuk daftar **"Peralatan belum bertikor"** di tab Peta (mode ➕ Aset): klik *Tempatkan*, lalu klik posisinya di peta atau tempel koordinatnya. Peralatan otomatis menempel ke tiang TM terdekat / disambung ke jaringan.
+
+SLD dari sumber (PLTD/GI) menggambar **satu keluaran per penyulang** dari bus 20 kV (opsi "Satu keluaran per penyulang"); panjang keluaran = jarak jaringan dari sumber ke titik awal penyulang.
+
 ## Keterangan & kop gambar SLD
 
 SLD memakai simbol gaya PLN (R hitam/putih = recloser NC/NO, M = LBS motorised, S = sectionalizer, kupu-kupu = LBS manual, FCO, gardu beton/tiang/cantol, gardu belum aktif/rusak, label kuning Key Point SCADA). Di kanan gambar ada panel **Keterangan** dan **kop** (UIW, UP3, ULP, Sistem, Penyulang/sumber, Nomor Gambar, Tanggal, Digambar/Diperiksa/Disetujui). Isi UIW/UP3/nomor gambar/nama penanda tangan di **Data → Kop gambar SLD**; ULP dan nama sistem diambil dari sistem aktif. Jenis saklar, jenis gardu, kondisi, dan tanda SCADA diisi di panel aset pada peta.

@@ -18,7 +18,7 @@ const EquipImport = {
     if (/^FCO|FUSE/.test(n)) return { type: 'FCO', sub: '' };
     if (/^GH\b|GARDU HUBUNG/.test(n)) return { type: 'GH', sub: '' };
     if (/^GI\b|GARDU INDUK/.test(n)) return { type: 'GI', sub: '' };
-    if (/^PERC|PERCABANGAN|^TP\b/.test(n)) return { type: 'TIANG', sub: '' };
+    if (/^PERC|PERCABANGAN|^TP\b|^LRG\b|^LORONG|^GG\b/.test(n)) return { type: 'TIANG', sub: '' };
     if (/^GD\b|^GT\b|TRAFO/.test(n)) return { type: 'GD', sub: '' };
     return { type: 'LBS', sub: '' };
   },
@@ -80,10 +80,19 @@ const EquipImport = {
   },
 
   run(o) {
-    const rows = this.parsed.rows.filter(r => r.ok && (!o.sistem || !r.sistem || SistemRef.norm(r.sistem) === SistemRef.norm(o.sistem)));
+    const mineAll = this.parsed.rows.filter(r => !o.sistem || !r.sistem || SistemRef.norm(r.sistem) === SistemRef.norm(o.sistem));
+    const rows = mineAll.filter(r => r.ok), noCoord = mineAll.filter(r => !r.ok);
     const fmap = this.feederMap();
-    const rep = { conv: 0, add: 0, link: 0, alone: 0, upd: 0, gi: null, skipped: this.parsed.rows.length - rows.length, warn: [] };
+    const rep = { conv: 0, add: 0, link: 0, alone: 0, upd: 0, gi: null, skipped: this.parsed.rows.length - mineAll.length, pending: 0, warn: [] };
     Store.mutate(d => {
+      // peralatan tanpa koordinat: simpan sebagai "belum bertikor" untuk ditempatkan lewat peta
+      d.pending = d.pending || [];
+      for (const r of noCoord) {
+        if (Store.byCode(r.name) || d.pending.some(p => p.name === r.name)) continue;
+        d.pending.push({ name: r.name, type: r.type, sub: r.type === 'LBS' ? (r.rtu ? 'motor' : '') : r.sub, feeder: fmap[SistemRef.norm(r.feeder)] || r.feeder,
+          merk: r.merk, scada: r.rtu, zona: r.zona, section: r.section, kondisi: r.kondisi, nCust: r.nCust, parent: r.parent, kva: r.kva });
+        rep.pending++;
+      }
       // 1. Gardu Induk dari titik CB penyulang (semua CB biasanya di koordinat GI yang sama)
       const cbs = rows.filter(r => r.sub === 'cb');
       let gi = d.assets.find(a => a.type === 'GI');
@@ -131,9 +140,31 @@ const EquipImport = {
     return [
       rep.gi ? `Gardu Induk dibuat: ${rep.gi} (dari koordinat CB penyulang)` : '',
       `${rep.conv} peralatan dipasang di tiang TM terdekat (≤ ${o.snapM} m), ${rep.add} dibuat sebagai aset baru (${rep.link} disambung otomatis, ${rep.alone} belum tersambung), ${rep.upd} diperbarui`,
-      rep.skipped ? `${rep.skipped} baris dilewati (tanpa koordinat atau bukan sistem ini)` : '',
+      rep.pending ? `${rep.pending} peralatan tanpa koordinat disimpan di daftar "belum bertikor" — tempatkan lewat tab Peta (klik peta / tempel koordinat)` : '',
+      rep.skipped ? `${rep.skipped} baris milik sistem lain dilewati` : '',
       ...rep.warn,
     ].filter(Boolean);
+  },
+
+  // tempatkan peralatan dari daftar pending di koordinat p: menempel ke tiang TM terdekat (≤ snapM) atau aset baru + sambung otomatis
+  place(idx, p, o = { snapM: 80, maxLinkM: 1500 }) {
+    const pd = Store.data.pending[idx]; if (!pd) return null;
+    const props = { code: pd.name, name: pd.name, feeder: pd.feeder, merk: pd.merk, scada: pd.scada, zona: pd.zona, section: pd.section, kondisi: pd.kondisi,
+      sub: pd.sub || '', status: 'NC', src: 'equip', kva: pd.kva ?? null,
+      note: [pd.zona && pd.section ? `${pd.zona} / ${pd.section}` : '', pd.nCust != null ? `${fmt.n(pd.nCust, 0)} pelanggan hilir` : '', pd.parent ? 'cabang dari ' + pd.parent : ''].filter(Boolean).join(' · ') };
+    let result = null;
+    Store.mutate(d => {
+      const near = this.nearestPole(p, o.snapM, pd.feeder) || this.nearestPole(p, o.snapM);
+      if (near && pd.type !== 'GH' && pd.type !== 'GI') { Object.assign(near.a, props, { type: pd.type }); result = { a: near.a, how: `dipasang di tiang ${near.a.code}` }; }
+      else {
+        const a = Store._newAsset({ ...props, type: pd.type, lat: p[0], lng: p[1] });
+        const far = this.nearestPole(p, o.maxLinkM, pd.feeder) || this.nearestPole(p, o.maxLinkM);
+        if (far) { Store._newLine({ from: far.a.id, to: a.id, level: 'JTM', conductor: Store.linesOf(far.a.id)[0]?.conductor || 'AAAC-70', feeder: pd.feeder, auto: true, note: `Sambungan otomatis (${Math.round(far.d)} m)` }); result = { a, how: `disambung ke ${far.a.code} (${Math.round(far.d)} m)` }; }
+        else result = { a, how: 'belum tersambung — tidak ada tiang TM dalam ' + o.maxLinkM + ' m' };
+      }
+      d.pending.splice(idx, 1);
+    }, 'asset');
+    return result;
   },
 
   /* ---------- UI ---------- */

@@ -11,6 +11,7 @@ const SLD = {
   build(rootId, opt) {
     const t = Net.tree(rootId, { respectOpen: opt.stopOpen, jtmOnly: !opt.showJTR });
     if (!t.root) return null;
+    if (opt.perFeeder && ASSET_TYPES[t.root.asset.type]?.source) this.splitFeeders(t);
     if (opt.collapse) this.collapse(t);
     // tinggi subtree (untuk menentukan trunk) — iteratif pasca-urut
     for (let i = t.order.length - 1; i >= 0; i--) {
@@ -47,6 +48,35 @@ const SLD = {
     t.root.row = 0;
     t.order.forEach(n => { if (n.parent) n.row = t.nodes.get(n.parent).row + n.off; });
     return t;
+  },
+
+  // Sumber (PLTD/GI) digambar dengan satu keluaran per penyulang: simpul pertama tiap penyulang
+  // dipindahkan langsung ke bawah sumber (panjang = jarak jaringan dari sumber).
+  splitFeeders(t) {
+    const root = t.root, heads = new Map();
+    for (const n of t.order) {
+      if (n === root) continue;
+      const f = n.asset.feeder; if (!f) continue;
+      const p = t.nodes.get(n.parent);
+      const pf = p === root ? null : p.asset.feeder;
+      if (pf === f) continue;                 // masih di penyulang yang sama
+      if (heads.has(f)) continue;             // penyulang ini sudah punya keluaran
+      heads.set(f, n);
+    }
+    for (const [f, n] of heads) {
+      const p = t.nodes.get(n.parent);
+      if (p === root) continue;
+      p.children = p.children.filter(c => c !== n);
+      const via = [];
+      for (let q = p; q && q !== root; q = t.nodes.get(q.parent)) via.unshift(q);
+      n.parent = root.id;
+      n.line = { id: 'f' + n.id, level: 'JTM', conductor: n.line.conductor, feeder: f, lengthM: n.dist, spans: via.length + 1,
+        note: via.length ? `via ${via[0].asset.code}` : '' };
+      root.children.push(n);
+    }
+    const order = [], st = [root];
+    while (st.length) { const n = st.pop(); order.push(n); for (let i = n.children.length - 1; i >= 0; i--) st.push(n.children[i]); }
+    t.order = order;
   },
 
   // gabungkan rangkaian tiang lurus (tiang dengan satu cabang lanjut) menjadi satu ruas
@@ -152,7 +182,7 @@ const SLD = {
   },
 
   render(rootId, opt = {}) {
-    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, ...opt };
+    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, perFeeder: true, ...opt };
     const t = this.build(rootId, opt);
     if (!t) return null;
     const { gapX, gapY, pad } = this;
@@ -175,7 +205,7 @@ const SLD = {
         else { sx = px + gapX / 2; edges.push(`<path d="M${px} ${py}H${sx}V${y}H${x}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`); }
         if (opt.showLen) {
           const mx = (sx + x) / 2;
-          const feederTag = (!p.parent && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
+          const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
           labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len">${fmt.m(Store.lineLength(l))}</text>
             <text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(l.conductor)}${l.spans ? ` · ${l.spans} gawang` : ''}</text>`);
         }
@@ -188,6 +218,10 @@ const SLD = {
         if (opt.showName && a.name && a.name !== a.code) lines.push(`<tspan x="0" dy="13">${esc(a.name.length > 26 ? a.name.slice(0, 25) + '…' : a.name)}</tspan>`);
         if (ASSET_TYPES[a.type]?.load && a.kva) lines.push(`<tspan x="0" dy="13">${fmt.n(a.kva, 0)} kVA${num(a.loadPct) != null ? ' · ' + fmt.n(a.loadPct, 0) + '%' : ''}</tspan>`);
         lbl = `<text y="${pole ? 18 : 34}" text-anchor="middle" class="lbl">${lines.join('')}</text>`;
+      }
+      if (!n.parent && n.children.length > 1 && ASSET_TYPES[a.type]?.source) {
+        const ys = n.children.map(c => Y(c)); const bx = x + gapX / 2;
+        edges.push(`<line x1="${bx}" y1="${Math.min(y, ...ys) - 10}" x2="${bx}" y2="${Math.max(y, ...ys) + 10}" stroke="#111" stroke-width="5"/><text x="${bx + 6}" y="${Math.min(y, ...ys) - 14}" class="cond">Bus 20 kV</text>`);
       }
       nodes.push(`<g class="node" data-id="${a.id}" transform="translate(${x},${y})"><title>${esc(ASSET_TYPES[a.type]?.label)} ${esc(a.code)}</title>${this.symbol(a)}${lbl}</g>`);
     }
