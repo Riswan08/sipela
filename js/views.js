@@ -264,8 +264,16 @@ const DataView = {
       <div class="cards2">
         ${GisImport.card()}
         <section class="card">
-          <h3>Proyek</h3>
-          <label class="f"><span>Nama proyek / unit</span><input id="pName" value="${esc(d.meta.name)}"></label>
+          <h3>Sistem</h3>
+          <ul class="syslist">${Store.systems.map(s => `<li class="${s.id === Store.current ? 'cur' : ''}">
+            <span>${s.id === Store.current ? '▶ ' : ''}${esc(s.name)}</span>
+            <span class="meta">${s.assets ?? 0} aset · ${s.lines ?? 0} saluran · ${fmt.date(s.updated)}</span>
+            ${s.id !== Store.current ? `<button class="btn sm" data-sys="${s.id}">Buka</button>` : ''}
+            <button class="btn sm danger" data-sysdel="${s.id}">✕</button></li>`).join('')}</ul>
+          <button class="btn" id="bSysNew">＋ Sistem baru</button>
+          <p class="hint">Tiap sistem (mis. Buano, Kairatu, Masohi) disimpan terpisah. Pindah sistem lewat menu di kiri atas.</p>
+          <h3 class="mt">Sistem aktif</h3>
+          <label class="f"><span>Nama sistem</span><input id="pName" value="${esc(d.meta.name)}"></label>
           <p class="muted small">Dibuat ${fmt.date(d.meta.created)} · terakhir disimpan ${fmt.date(d.meta.updated)} · ${d.assets.length} aset, ${d.lines.length} saluran.
           Data tersimpan otomatis di browser ini. <b>Rutin unduh backup</b> agar aman & bisa dipindah ke perangkat lain.</p>
           <div class="btnrow">
@@ -294,7 +302,7 @@ const DataView = {
 
           <h3 class="mt">Lainnya</h3>
           <div class="btnrow">
-            <button class="btn danger" id="bClear">Hapus semua data</button>
+            <button class="btn danger" id="bClear">Kosongkan sistem ini</button>
           </div>
         </section>
 
@@ -322,15 +330,21 @@ const DataView = {
         </section>
       </div>`;
     GisImport.bind(el);
-    el.querySelector('#pName').onchange = e => Store.mutate(() => { Store.data.meta.name = e.target.value.trim() || 'Proyek'; }, 'meta');
+    el.querySelector('#pName').onchange = e => Store.mutate(() => { Store.data.meta.name = e.target.value.trim() || 'Sistem'; }, 'meta');
+    el.querySelector('#bSysNew').onclick = () => App.newSystem();
+    el.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => Store.switchTo(b.dataset.sys));
+    el.querySelectorAll('[data-sysdel]').forEach(b => b.onclick = () => {
+      const s = Store.system(b.dataset.sysdel);
+      if (confirm(`Hapus sistem "${s.name}" (${s.assets} aset) secara permanen? Tidak bisa di-undo.`)) Store.deleteSystem(s.id);
+    });
     el.querySelector('#bJson').onclick = () => IO.exportJson();
     el.querySelector('#bTpl').onclick = () => IO.templateExcel();
     el.querySelector('#bXlsx').onclick = () => IO.exportExcel();
     el.querySelector('#bKml').onclick = () => IO.exportKml();
     el.querySelector('#bGeo').onclick = () => IO.exportGeoJSON();
     el.querySelector('#bClear').onclick = () => {
-      if (!confirm('Hapus SEMUA aset & saluran? (masih bisa di-undo selama halaman belum ditutup)')) return;
-      Store.mutate(d => { d.assets = []; d.lines = []; }, 'clear');
+      if (!confirm('Hapus SEMUA aset, saluran & pelanggan di sistem ini? (masih bisa di-undo selama halaman belum ditutup)')) return;
+      Store.mutate(d => { d.assets = []; d.lines = []; d.customers = []; }, 'clear');
     };
     el.querySelectorAll('input[type=file][data-imp]').forEach(inp => inp.onchange = async () => {
       const f = inp.files[0]; if (!f) return;

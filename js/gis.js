@@ -98,7 +98,7 @@ const GisImport = {
         d.lines = d.lines.filter(l => !gone.has(l.from) && !gone.has(l.to));
         d.customers = [];
       }
-      if (!d.assets.length && d.meta.name === 'Proyek Baru') d.meta.name = 'Sistem ' + [...F].join(' – ');
+      if (!d.assets.length && /^(Proyek Baru|Sistem \d+|Sistem baru)$/.test(d.meta.name)) d.meta.name = 'Sistem ' + [...F].join(' – ');
       const mk = a => Store._newAsset({ src: 'gis', ...a });
 
       /* 1. tiang TM (duplikat < 0,5 m digabung) */
@@ -276,13 +276,18 @@ const GisImport = {
         <label class="f"><span>Tandai celah JTM bila > (m)</span><input id="gisGap" value="150" inputmode="decimal"></label>
         <label class="f"><span>Gardu menempel tiang TM bila ≤ (m)</span><input id="gisSnap" value="80" inputmode="decimal"></label>
       </div>
-      ${hasOld ? '<label class="chk"><input type="checkbox" id="gisReplace" checked> Ganti hasil import GIS sebelumnya (hindari data ganda)</label>' : ''}
+      ${Store.data.assets.length ? `<label class="chk"><input type="checkbox" id="gisNewSys" checked> Import ke <b>sistem baru</b> bernama <input id="gisNewName" value="Sistem ${esc(P.feeders.map(f => f[0]).join(' – '))}" style="width:auto;display:inline-block;padding:2px 6px"></label>
+      ${hasOld ? '<label class="chk" id="gisReplaceWrap"><input type="checkbox" id="gisReplace" checked> …atau ganti hasil import GIS sebelumnya di sistem ini</label>' : ''}` : ''}
       <p class="hint">Faktor kebersamaan: beban gardu ≈ total daya kontrak pelanggan × faktor ini (umumnya 0,3–0,5 untuk rumah tangga). Ganti dengan hasil ukur beban bila ada.</p>
       <button class="btn primary" id="gisRun">Import & rekonstruksi jaringan</button>
       <div id="gisLog"></div>`;
-    box.querySelector('#gisRun').onclick = () => {
+    box.querySelector('#gisRun').onclick = async () => {
       const feeders = [...box.querySelectorAll('.gisF:checked')].map(c => c.value);
       if (!feeders.length) return App.toast('Pilih minimal satu penyulang');
+      const nn = box.querySelector('#gisNewSys');
+      if (nn?.checked) {
+        await Store.createSystem(box.querySelector('#gisNewName').value.trim() || 'Sistem ' + feeders.join(' – '));
+      }
       const o = {
         feeders, tmCond: box.querySelector('#gisCond').value,
         cf: num(box.querySelector('#gisCf').value) ?? 0.4, gapM: num(box.querySelector('#gisGap').value) ?? 150,

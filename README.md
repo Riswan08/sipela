@@ -43,7 +43,11 @@ Data GIS biasanya belum lengkap untuk kebutuhan perencanaan, jadi aplikasi melen
 | Tiang TR bernomor | JTR dirangkai sesuai urutan nomor tiang per jurusan. Jenis kabel diambil dari sheet JTR. |
 | Titik pelanggan (APP) | Ditampilkan sebagai layer *Pelanggan (APP)*, dengan jumlah pelanggan, daya tersambung, dan jarak pelanggan terjauh per gardu. |
 
-Setelah import, **tambahkan PLTD/GI sebagai sumber** dan sambungkan ke tiang TM awal penyulang. SLD otomatis meringkas rangkaian tiang lurus menjadi satu ruas (dengan jumlah gawang).
+Setelah import, **tambahkan PLTD/GI sebagai sumber** (lewat titik koordinat), lalu klik **⚡ Sambung ke jaringan terdekat** — SLD langsung tergambar. Saat menggambar saluran manual, klik yang jatuh dekat tiang otomatis menempel ke tiang itu. SLD otomatis meringkas rangkaian tiang lurus menjadi satu ruas (dengan jumlah gawang).
+
+## Banyak sistem dalam satu aplikasi
+
+Setiap sistem kelistrikan (misalnya Buano, Kairatu, Masohi) disimpan terpisah. Pindah sistem lewat menu di kiri atas; buat, buka, atau hapus sistem di tab **Data → Sistem**. Saat import GIS, centang "Import ke sistem baru" agar tiap file masuk ke sistemnya sendiri. Data disimpan di IndexedDB browser (kapasitas ratusan MB), tetap unduh backup (.json) per sistem secara rutin.
 
 ## Alur kerja yang disarankan
 

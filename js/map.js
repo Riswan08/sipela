@@ -202,10 +202,24 @@ const MapView = {
     this.select('asset', id);
   },
 
+  // aset terdekat dari titik klik, dalam jarak layar (piksel) — agar tiang kecil mudah dikenai
+  snapAsset(ll, px = 14) {
+    const c = this.map.latLngToContainerPoint(ll);
+    let best = null;
+    for (const a of Store.data.assets) {
+      if (Math.abs(a.lat - ll.lat) > 0.01 || Math.abs(a.lng - ll.lng) > 0.01) continue;
+      const d = c.distanceTo(this.map.latLngToContainerPoint([a.lat, a.lng]));
+      if (d <= px && (!best || d < best.d)) best = { a, d };
+    }
+    return best?.a || null;
+  },
+
   onMapClick(ll) {
     const p = [+ll.lat.toFixed(7), +ll.lng.toFixed(7)];
     if (this.mode === 'asset') return this.placeAsset(p);
     if (this.mode === 'line') {
+      const near = this.snapAsset(ll);
+      if (near) return this.onAssetClick(near.id);
       if (!this.draft) { App.toast('Klik aset awal terlebih dahulu'); return; }
       this.draft.pts.push(p); this.renderDraft(); this.renderModeOpts(); return;
     }
@@ -241,12 +255,15 @@ const MapView = {
     this.select('line', l.id);
     this.renderModeOpts();
     App.toast(`Saluran ${from.code} → ${to.code}: ${fmt.m(Store.lineLength(l))}`);
+    if (ASSET_TYPES[from.type]?.source || ASSET_TYPES[to.type]?.source) setTimeout(() => App.showSld(ASSET_TYPES[from.type]?.source ? from.id : to.id), 600);
   },
   // selesai di titik terakhir dengan membuat tiang baru
   finishDraftAtNewPole() {
     const d = this.draft;
     if (!d || !d.pts.length) return;
     const end = d.pts.pop();
+    const near = this.snapAsset(L.latLng(end), 20);
+    if (near && near.id !== d.from) { this.finishDraft(near.id); return; }
     const o = this.opts;
     const l = Store.mutate(() => {
       const from = Store.asset(d.from);
@@ -396,6 +413,27 @@ const MapView = {
     if (act === 'clearpath') return Store.mutate(() => { Store.line(s.id).path = []; }, 'edit');
     if (act === 'toggle') return Store.mutate(() => { const a = Store.asset(s.id); a.status = a.status === 'NO' ? 'NC' : 'NO'; }, 'edit');
     if (act === 'connect') { this.setMode('line'); this.draft = { from: s.id, pts: [] }; this.renderModeOpts(); this.renderDraft(); }
+    if (act === 'autoconnect') return this.autoConnect(s.id);
+  },
+
+  // sambungkan aset ke aset jaringan terdekat (tiang TM / gardu / GH) dengan satu ruas JTM
+  autoConnect(id) {
+    const a = Store.asset(id);
+    const linked = new Set(Store.linesOf(id).map(l => l.from === id ? l.to : l.from));
+    let best = null;
+    for (const b of Store.data.assets) {
+      if (b.id === id || linked.has(b.id) || b.sub === 'TR' || ASSET_TYPES[b.type]?.source) continue;
+      if (b.type === 'TIANG' && !Store.linesOf(b.id).some(l => l.level === 'JTM')) continue; // tiang yatim
+      const d = Geo.dist([a.lat, a.lng], [b.lat, b.lng]);
+      if (!best || d < best.d) best = { b, d };
+    }
+    if (!best) return App.toast('Tidak ada aset jaringan untuk disambung');
+    if (best.d > 2000 && !confirm(`Aset jaringan terdekat (${best.b.code}) berjarak ${fmt.m(best.d)}. Tetap sambungkan?`)) return;
+    const l = Store.addLine({ from: id, to: best.b.id, conductor: this.opts.conductor, level: 'JTM', feeder: a.feeder || best.b.feeder || '', note: 'Sambungan otomatis ke aset terdekat' });
+    this.select('line', l.id);
+    const T = ASSET_TYPES[a.type];
+    App.toast(`${a.code} disambung ke ${best.b.code} (${fmt.m(best.d)})` + (T?.source ? ' — buka tab SLD' : ''));
+    if (T?.source) setTimeout(() => App.showSld(id), 600);
   },
 
   assetForm(a) {
@@ -440,6 +478,7 @@ const MapView = {
       <div class="btnrow">
         <button class="btn" data-act="zoom">🔍 Zoom</button>
         <button class="btn" data-act="connect">〰 Sambung</button>
+        ${!lines.length || T.source ? '<button class="btn primary" data-act="autoconnect">⚡ Sambung ke jaringan terdekat</button>' : ''}
         <button class="btn" data-act="sld">SLD</button>
         <button class="btn" data-act="dist">📏 Jarak</button>
         <button class="btn danger" data-act="delete">Hapus</button>

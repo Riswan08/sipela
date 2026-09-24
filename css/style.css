@@ -16,6 +16,12 @@ kbd { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; paddin
 .brand .bolt { color: #facc15; font-size: 18px; }
 .brand b { letter-spacing: .5px; }
 .brand small { color: #94a3b8; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+#sysSel { width: auto; max-width: 240px; background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); padding: 4px 8px; font-size: 13px; font-weight: 600; }
+#sysSel option { color: #0f172a; }
+.syslist { list-style: none; padding: 0; margin: 6px 0; }
+.syslist li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.syslist li.cur { font-weight: 700; }
+.syslist .meta { color: var(--muted); font-size: 12px; flex: 1; }
 #nav { display: flex; gap: 2px; overflow-x: auto; flex: 1; }
 #nav button { background: none; border: 0; color: #cbd5e1; padding: 8px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 #nav button:hover { background: rgba(255,255,255,.08); color: #fff; }

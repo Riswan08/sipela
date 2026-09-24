@@ -130,18 +130,99 @@ function feederColor(name) {
   return FEEDER_COLORS[h % FEEDER_COLORS.length];
 }
 
+/* Penyimpanan: IndexedDB (kapasitas besar, banyak sistem) dengan cadangan localStorage.
+ * Kunci: 'systems' = daftar sistem, 'current' = id aktif, 'sys:<id>' = data tiap sistem. */
+const DB = {
+  _db: null,
+  open() {
+    if (this._db) return Promise.resolve(this._db);
+    return new Promise((res, rej) => {
+      if (!window.indexedDB) return rej(new Error('no idb'));
+      const r = indexedDB.open('sipela', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(this._db = r.result);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async tx(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('kv', mode), st = t.objectStore('kv');
+      const req = fn(st);
+      t.oncomplete = () => res(req && req.result);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error);
+    });
+  },
+  get(k) { return this.tx('readonly', st => st.get(k)).catch(() => { try { const v = localStorage.getItem('sipela:' + k); return v ? JSON.parse(v) : undefined; } catch { return undefined; } }); },
+  set(k, v) { return this.tx('readwrite', st => st.put(v, k)).catch(() => { localStorage.setItem('sipela:' + k, JSON.stringify(v)); }); },
+  del(k) { return this.tx('readwrite', st => st.delete(k)).catch(() => { localStorage.removeItem('sipela:' + k); }); },
+};
+
 const Store = {
   data: emptyData(),
+  systems: [],        // [{id, name, updated, assets, lines}]
+  current: null,
   undoStack: [],
   listeners: [],
   saveOk: true,
 
-  load() {
+  async load() {
     try {
-      // data dari nama lama aplikasi tetap terbaca
-      const raw = localStorage.getItem(STORAGE_KEY) ?? LEGACY_KEYS.map(k => localStorage.getItem(k)).find(Boolean);
-      if (raw) this.data = this.normalize(JSON.parse(raw));
+      this.systems = (await DB.get('systems')) || [];
+      this.current = await DB.get('current');
+      if (!this.systems.length) {
+        // migrasi dari penyimpanan lama (satu proyek di localStorage)
+        const raw = [STORAGE_KEY, ...LEGACY_KEYS].map(k => localStorage.getItem(k)).find(Boolean);
+        const d = raw ? this.normalize(JSON.parse(raw)) : emptyData();
+        if (!raw) d.meta.name = 'Sistem 1';
+        await this.createSystem(d.meta.name, d);
+        [STORAGE_KEY, ...LEGACY_KEYS].forEach(k => localStorage.removeItem(k));
+        return;
+      }
+      if (!this.systems.some(x => x.id === this.current)) this.current = this.systems[0].id;
+      const d = await DB.get('sys:' + this.current);
+      this.data = this.normalize(d);
     } catch (e) { console.warn('Gagal memuat data', e); }
+  },
+  system(id = this.current) { return this.systems.find(x => x.id === id); },
+  async saveIndex() {
+    const s = this.system();
+    if (s) Object.assign(s, { name: this.data.meta.name, updated: this.data.meta.updated, assets: this.data.assets.length, lines: this.data.lines.length });
+    await DB.set('systems', this.systems);
+    await DB.set('current', this.current);
+  },
+  async createSystem(name, data) {
+    const id = this.uid('s');
+    const d = data ? this.normalize(data) : emptyData();
+    d.meta.name = name || d.meta.name || 'Sistem baru';
+    d.meta.updated = new Date().toISOString();
+    this.systems.push({ id, name: d.meta.name, updated: d.meta.updated, assets: d.assets.length, lines: d.lines.length });
+    this.current = id; this.data = d; this.undoStack = []; this._idx = null;
+    await DB.set('sys:' + id, d);
+    await this.saveIndex();
+    this.emit('system');
+    return id;
+  },
+  async switchTo(id) {
+    if (id === this.current || !this.system(id)) return;
+    this.current = id;
+    this.data = this.normalize(await DB.get('sys:' + id));
+    this.undoStack = []; this._idx = null;
+    await DB.set('current', id);
+    this.emit('system');
+  },
+  async deleteSystem(id) {
+    const i = this.systems.findIndex(x => x.id === id);
+    if (i < 0) return;
+    this.systems.splice(i, 1);
+    await DB.del('sys:' + id);
+    if (id === this.current) {
+      if (!this.systems.length) { await this.createSystem('Sistem 1'); return; }
+      await this.switchTo(this.systems[0].id);
+    }
+    await this.saveIndex();
+    this.emit('system');
   },
   normalize(d) {
     const e = emptyData();
@@ -155,10 +236,16 @@ const Store = {
       params: { ...e.params, ...(d.params || {}) },
     };
   },
+  // simpan asinkron; penulisan digabung bila perubahan beruntun
   persist() {
     this.data.meta.updated = new Date().toISOString();
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); this.saveOk = true; }
-    catch (e) { this.saveOk = false; console.error(e); }
+    clearTimeout(this._pt);
+    this._pt = setTimeout(() => {
+      const id = this.current, d = this.data;
+      DB.set('sys:' + id, d).then(() => this.saveIndex())
+        .then(() => { if (!this.saveOk) { this.saveOk = true; this.emit('saved'); } })
+        .catch(e => { this.saveOk = false; console.error(e); this.emit('saved'); });
+    }, 150);
   },
   on(fn) { this.listeners.push(fn); },
   emit(reason) { this.listeners.forEach(f => f(reason)); },

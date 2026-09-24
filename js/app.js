@@ -42,6 +42,12 @@ const SldView = {
     const svg = SLD.render(this.rootId, this.opt);
     if (!svg) { wrap.innerHTML = '<p class="pad">Tidak dapat menggambar SLD.</p>'; return; }
     SLD.mount(wrap, svg);
+    const reach = SLD.tree ? SLD.tree.nodes.size : 0, total = Store.data.assets.filter(a => a.sub !== 'TR').length;
+    const root = Store.asset(this.rootId);
+    if (ASSET_TYPES[root?.type]?.source && total > 5 && reach < total * 0.5) {
+      document.getElementById('sldInfo').innerHTML = `<span class="warn">⚠ ${esc(root.code)} hanya menjangkau ${reach} dari ${total} aset.</span> Kemungkinan pembangkit belum tersambung ke tiang TM jaringan.
+        <button class="btn sm primary" onclick="App.focusAsset('${root.id}'); setTimeout(() => MapView.autoConnect('${root.id}'), 300)">⚡ Sambungkan ke jaringan terdekat</button>`;
+    }
   },
 };
 
@@ -49,14 +55,20 @@ const App = {
   view: 'map',
   views: { map: null, sld: SldView, assets: AssetsView, lines: LinesView, analysis: AnalysisView, data: DataView },
 
-  init() {
-    Store.load();
+  async init() {
+    await Store.load();
+    const sel = document.getElementById('sysSel');
+    sel.onchange = async () => {
+      if (sel.value === '__new') { this.newSystem(); this.refreshCommon(); return; }
+      await Store.switchTo(sel.value);
+    };
     document.querySelectorAll('#nav button').forEach(b => b.onclick = () => this.show(b.dataset.view));
     document.getElementById('btnUndo').onclick = () => this.undo();
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); this.undo(); }
     });
-    Store.on(reason => this.onChange(reason));
+    Store.on(reason => reason === 'saved' ? this.refreshCommon() : this.onChange(reason));
+    Store.on(reason => { if (reason === 'system') { MapView.sel = null; MapView.fitAll(); } });
     MapView.init();
     this.refreshCommon();
     const v = (location.hash || '').slice(1);
@@ -72,12 +84,23 @@ const App = {
     if (v) v.render();
   },
 
+  async newSystem(name) {
+    name = name ?? prompt('Nama sistem baru (mis. Sistem Buano):', '');
+    if (name == null) return null;
+    const id = await Store.createSystem(name.trim() || 'Sistem baru');
+    this.toast(`Sistem "${Store.data.meta.name}" dibuat`);
+    return id;
+  },
+
   refreshCommon() {
-    document.getElementById('projName').textContent = Store.data.meta.name;
+    const sel = document.getElementById('sysSel');
+    sel.innerHTML = Store.systems.map(s => `<option value="${s.id}" ${s.id === Store.current ? 'selected' : ''}>${esc(s.name)}</option>`).join('') +
+      '<option value="__new">＋ Sistem baru…</option>';
+    sel.value = Store.current;
     document.getElementById('dlAssets').innerHTML = Store.data.assets.map(a => `<option value="${esc(a.code)}">${esc(ASSET_TYPES[a.type]?.short)} ${esc(a.name)}</option>`).join('');
     document.getElementById('dlFeeders').innerHTML = Store.feeders().map(f => `<option value="${esc(f)}">`).join('');
     const s = document.getElementById('saveState');
-    s.textContent = Store.saveOk ? (Store.data.meta.updated ? 'Tersimpan ✓' : '') : 'Gagal simpan!';
+    s.textContent = Store.saveOk ? (Store.data.meta.updated ? 'Tersimpan ✓' : '') : 'Gagal simpan! Unduh backup.';
     s.className = Store.saveOk ? 'muted' : 'bad';
     document.getElementById('btnUndo').disabled = !Store.undoStack.length;
   },
