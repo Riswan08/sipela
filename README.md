@@ -45,6 +45,12 @@ Data GIS biasanya belum lengkap untuk kebutuhan perencanaan, jadi aplikasi melen
 
 Setelah import, **tambahkan PLTD/GI sebagai sumber** (lewat titik koordinat), lalu klik **⚡ Sambung ke jaringan terdekat** — SLD langsung tergambar. Saat menggambar saluran manual, klik yang jatuh dekat tiang otomatis menempel ke tiang itu. SLD otomatis meringkas rangkaian tiang lurus menjadi satu ruas (dengan jumlah gawang).
 
+## Import seluruh UP3 sekaligus (26 sistem)
+
+Daftar **ULP → Sistem → Penyulang** UP3 Masohi tertanam di `js/sistem.js` (sumber: *Data Sistem Per Penyulang.xlsx*). Saat file GIS seluruh UP3 diimport, wizard mengelompokkan tiap penyulang ke sistemnya (nama beda ejaan seperti TAMILOW→Tamilouw ditangani), menampilkan tabel untuk dikoreksi, lalu membuat/memperbarui satu entri sistem per sistem. Pilihan penyulang yang Anda tetapkan manual disimpan untuk import berikutnya. Dropdown **ULP** dan **Sistem** ada di kiri atas; setiap penyulang dalam satu sistem diberi warna berbeda (legenda di kiri bawah peta, klik untuk zoom).
+
+Pengaman rekonstruksi: tiang dengan kolom PENYULANG kosong mengikuti penyulang tiang terdekat (≤ 300 m); ruas JTM/JTR dan sambungan gardu yang lebih jauh dari batas (default 1.500 m) tidak dibuat, sehingga jaringan boleh terpecah beberapa kelompok daripada tersambung palsu puluhan km.
+
 ## Banyak sistem dalam satu aplikasi
 
 Setiap sistem kelistrikan (misalnya Buano, Kairatu, Masohi) disimpan terpisah. Pindah sistem lewat menu di kiri atas; buat, buka, atau hapus sistem di tab **Data → Sistem**. Saat import GIS, centang "Import ke sistem baru" agar tiap file masuk ke sistemnya sendiri. Data disimpan di IndexedDB browser (kapasitas ratusan MB), tetap unduh backup (.json) per sistem secara rutin.

@@ -42,7 +42,8 @@ const DEFAULT_PARAMS = {
 
 function emptyData() {
   return {
-    meta: { name: 'Proyek Baru', created: new Date().toISOString(), updated: null },
+    meta: { name: 'Proyek Baru', ulp: '', sistem: '', created: new Date().toISOString(), updated: null },
+    feederColors: {},  // warna tiap penyulang di sistem ini (ditetapkan saat import / bisa diubah)
     assets: [],
     lines: [],
     customers: [],   // titik pelanggan (APP) dari GIS: {lat,lng,gd,idpel,va,feeder}
@@ -122,9 +123,13 @@ function parseCoord(txt) {
 }
 
 // warna konsisten per penyulang
-const FEEDER_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#db2777', '#65a30d', '#4f46e5', '#b45309'];
+const FEEDER_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#db2777', '#65a30d', '#4f46e5', '#b45309',
+  '#0d9488', '#7c2d12', '#1d4ed8', '#be123c', '#4d7c0f', '#6d28d9', '#c2410c', '#0369a1', '#a21caf', '#854d0e'];
+// warna penyulang: pakai penetapan di sistem aktif bila ada, jika tidak dari hash nama
 function feederColor(name) {
   if (!name) return '#64748b';
+  const fc = Store.data && Store.data.feederColors;
+  if (fc && fc[name]) return fc[name];
   let h = 0;
   for (const c of String(name).toUpperCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return FEEDER_COLORS[h % FEEDER_COLORS.length];
@@ -186,18 +191,20 @@ const Store = {
     } catch (e) { console.warn('Gagal memuat data', e); }
   },
   system(id = this.current) { return this.systems.find(x => x.id === id); },
-  async saveIndex() {
-    const s = this.system();
-    if (s) Object.assign(s, { name: this.data.meta.name, updated: this.data.meta.updated, assets: this.data.assets.length, lines: this.data.lines.length });
+  async saveIndex(id = this.current, d = this.data) {
+    const s = this.system(id);
+    if (s) Object.assign(s, { name: d.meta.name, ulp: d.meta.ulp || '', sistem: d.meta.sistem || '', updated: d.meta.updated, assets: d.assets.length, lines: d.lines.length });
     await DB.set('systems', this.systems);
     await DB.set('current', this.current);
   },
-  async createSystem(name, data) {
+  async createSystem(name, data, meta = {}) {
+    await this.flush();
     const id = this.uid('s');
     const d = data ? this.normalize(data) : emptyData();
     d.meta.name = name || d.meta.name || 'Sistem baru';
+    Object.assign(d.meta, meta);
     d.meta.updated = new Date().toISOString();
-    this.systems.push({ id, name: d.meta.name, updated: d.meta.updated, assets: d.assets.length, lines: d.lines.length });
+    this.systems.push({ id, name: d.meta.name, ulp: d.meta.ulp || '', sistem: d.meta.sistem || '', updated: d.meta.updated, assets: d.assets.length, lines: d.lines.length });
     this.current = id; this.data = d; this.undoStack = []; this._idx = null;
     await DB.set('sys:' + id, d);
     await this.saveIndex();
@@ -206,6 +213,7 @@ const Store = {
   },
   async switchTo(id) {
     if (id === this.current || !this.system(id)) return;
+    await this.flush();
     this.current = id;
     this.data = this.normalize(await DB.get('sys:' + id));
     this.undoStack = []; this._idx = null;
@@ -215,6 +223,8 @@ const Store = {
   async deleteSystem(id) {
     const i = this.systems.findIndex(x => x.id === id);
     if (i < 0) return;
+    if (this._pending && this._pending.id === id) this._pending = null;
+    await this.flush();
     this.systems.splice(i, 1);
     await DB.del('sys:' + id);
     if (id === this.current) {
@@ -232,6 +242,7 @@ const Store = {
       assets: Array.isArray(d.assets) ? d.assets : [],
       lines: Array.isArray(d.lines) ? d.lines : [],
       customers: Array.isArray(d.customers) ? d.customers : [],
+      feederColors: d.feederColors && typeof d.feederColors === 'object' ? d.feederColors : {},
       conductors: Array.isArray(d.conductors) && d.conductors.length ? d.conductors : e.conductors,
       params: { ...e.params, ...(d.params || {}) },
     };
@@ -239,13 +250,20 @@ const Store = {
   // simpan asinkron; penulisan digabung bila perubahan beruntun
   persist() {
     this.data.meta.updated = new Date().toISOString();
+    this._pending = { id: this.current, d: this.data };
     clearTimeout(this._pt);
-    this._pt = setTimeout(() => {
-      const id = this.current, d = this.data;
-      DB.set('sys:' + id, d).then(() => this.saveIndex())
-        .then(() => { if (!this.saveOk) { this.saveOk = true; this.emit('saved'); } })
-        .catch(e => { this.saveOk = false; console.error(e); this.emit('saved'); });
-    }, 150);
+    this._pt = setTimeout(() => this.flush(), 150);
+  },
+  // tulis segera data yang tertunda (dipanggil sebelum pindah/buat/hapus sistem)
+  async flush() {
+    clearTimeout(this._pt);
+    const p = this._pending; this._pending = null;
+    if (!p) return;
+    try {
+      await DB.set('sys:' + p.id, p.d);
+      await this.saveIndex(p.id, p.d);
+      if (!this.saveOk) { this.saveOk = true; this.emit('saved'); }
+    } catch (e) { this.saveOk = false; console.error(e); this.emit('saved'); }
   },
   on(fn) { this.listeners.push(fn); },
   emit(reason) { this.listeners.forEach(f => f(reason)); },
@@ -254,6 +272,16 @@ const Store = {
     if (this.undoStack.length > 30) this.undoStack.shift();
   },
   // semua perubahan data lewat sini agar bisa di-undo & tersimpan otomatis
+  // perubahan besar (import ribuan aset): tanpa snapshot undo agar hemat memori
+  mutateNoUndo(fn, reason = 'import') {
+    this.undoStack = [];
+    this._idx = null;
+    const r = fn(this.data);
+    this._idx = null;
+    this.persist();
+    this.emit(reason);
+    return r;
+  },
   mutate(fn, reason = 'change') {
     this.snapshot();
     this._idx = null;

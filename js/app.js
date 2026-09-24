@@ -57,11 +57,12 @@ const App = {
 
   async init() {
     await Store.load();
-    const sel = document.getElementById('sysSel');
+    const sel = document.getElementById('sysSel'), ulp = document.getElementById('ulpSel');
     sel.onchange = async () => {
       if (sel.value === '__new') { this.newSystem(); this.refreshCommon(); return; }
       await Store.switchTo(sel.value);
     };
+    ulp.onchange = () => { this.ulpFilter = ulp.value; this.refreshCommon(); const first = this.systemsFiltered()[0]; if (first && !this.systemsFiltered().some(s => s.id === Store.current)) Store.switchTo(first.id); };
     document.querySelectorAll('#nav button').forEach(b => b.onclick = () => this.show(b.dataset.view));
     document.getElementById('btnUndo').onclick = () => this.undo();
     document.addEventListener('keydown', e => {
@@ -87,15 +88,27 @@ const App = {
   async newSystem(name) {
     name = name ?? prompt('Nama sistem baru (mis. Sistem Buano):', '');
     if (name == null) return null;
-    const id = await Store.createSystem(name.trim() || 'Sistem baru');
+    const id = await Store.createSystem(name.trim() || 'Sistem baru', null, { ulp: this.ulpFilter || '' });
     this.toast(`Sistem "${Store.data.meta.name}" dibuat`);
     return id;
   },
 
+  ulpFilter: '',
+  systemsFiltered() {
+    const list = Store.systems.filter(s => !this.ulpFilter || (s.ulp || '') === this.ulpFilter);
+    return list.sort((a, b) => (a.ulp || '').localeCompare(b.ulp || '') || a.name.localeCompare(b.name, 'id'));
+  },
   refreshCommon() {
-    const sel = document.getElementById('sysSel');
-    sel.innerHTML = Store.systems.map(s => `<option value="${s.id}" ${s.id === Store.current ? 'selected' : ''}>${esc(s.name)}</option>`).join('') +
-      '<option value="__new">＋ Sistem baru…</option>';
+    const ulpSel = document.getElementById('ulpSel'), sel = document.getElementById('sysSel');
+    const ulps = [...new Set(Store.systems.map(s => s.ulp).filter(Boolean))].sort();
+    ulpSel.innerHTML = `<option value="">Semua ULP</option>` + ulps.map(u => `<option value="${esc(u)}" ${u === this.ulpFilter ? 'selected' : ''}>ULP ${esc(u)}</option>`).join('');
+    ulpSel.style.display = ulps.length ? '' : 'none';
+    if (this.ulpFilter && !ulps.includes(this.ulpFilter)) this.ulpFilter = '';
+    const list = this.systemsFiltered();
+    const cur = Store.system();
+    const opts = list.map(s => `<option value="${s.id}" ${s.id === Store.current ? 'selected' : ''}>${esc(s.name)}${!this.ulpFilter && s.ulp ? ` (${esc(s.ulp)})` : ''}</option>`);
+    if (cur && !list.some(s => s.id === cur.id)) opts.unshift(`<option value="${cur.id}" selected>${esc(cur.name)}</option>`);
+    sel.innerHTML = opts.join('') + '<option value="__new">＋ Sistem baru…</option>';
     sel.value = Store.current;
     document.getElementById('dlAssets').innerHTML = Store.data.assets.map(a => `<option value="${esc(a.code)}">${esc(ASSET_TYPES[a.type]?.short)} ${esc(a.name)}</option>`).join('');
     document.getElementById('dlFeeders').innerHTML = Store.feeders().map(f => `<option value="${esc(f)}">`).join('');

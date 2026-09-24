@@ -28,6 +28,10 @@ const MapView = {
     this.custLayer = L.layerGroup().addTo(map);
     L.control.layers({ 'Jalan (OSM)': osm, 'Satelit': sat, 'Satelit + Label': hyb }, { 'Pelanggan (APP)': this.custLayer }).addTo(map);
     L.control.scale({ imperial: false }).addTo(map);
+    this.legendCtl = L.control({ position: 'bottomleft' });
+    this.legendCtl.onAdd = () => { const div = L.DomUtil.create('div', 'map-legend'); L.DomEvent.disableClickPropagation(div); this.legendEl = div; return div; };
+    this.legendCtl.addTo(map);
+    map.on('moveend', () => this.renderCustomers());
 
     this.lineLayer = L.layerGroup().addTo(map);
     this.hlLayer = L.layerGroup().addTo(map);
@@ -129,6 +133,7 @@ const MapView = {
       this.markers.set(a.id, mk);
     }
     this.renderCustomers();
+    this.renderLegend();
     this.renderEditor();
   },
   poleStyle(a) {
@@ -136,12 +141,31 @@ const MapView = {
     return { radius: sel ? 7 : tr ? 2.5 : 3.5, color: sel ? '#facc15' : tr ? '#64748b' : '#1e293b', weight: sel ? 3 : 1,
       fillColor: tr ? '#cbd5e1' : '#475569', fillOpacity: 1 };
   },
+  renderLegend() {
+    if (!this.legendEl) return;
+    const lens = {};
+    Store.data.lines.forEach(l => { if (l.feeder && l.level !== 'JTR') lens[l.feeder] = (lens[l.feeder] || 0) + Store.lineLength(l); });
+    const names = Object.keys(lens).sort();
+    if (!names.length) { this.legendEl.style.display = 'none'; return; }
+    this.legendEl.style.display = '';
+    this.legendEl.innerHTML = `<b>Penyulang (klik untuk zoom)</b>` + names.map(f =>
+      `<div class="fl" data-f="${esc(f)}"><i style="--c:${feederColor(f)}"></i>${esc(f)} <small>${fmt.m(lens[f])}</small></div>`).join('');
+    this.legendEl.querySelectorAll('.fl').forEach(el => el.onclick = () => {
+      const pts = [];
+      Store.data.lines.forEach(l => { if (l.feeder === el.dataset.f) { const p = Store.linePoints(l); if (p) pts.push(p[0], p[p.length - 1]); } });
+      if (pts.length) this.map.fitBounds(pts, { padding: [30, 30] });
+    });
+  },
+  // pelanggan hanya digambar saat zoom dekat & di area tampak (bisa puluhan ribu titik)
   renderCustomers() {
     const cs = Store.data.customers || [];
-    if (this._custCount === cs.length && this._custRef === cs) return;
-    this._custCount = cs.length; this._custRef = cs;
     this.custLayer.clearLayers();
+    if (!cs.length || this.map.getZoom() < 15) return;
+    const b = this.map.getBounds().pad(0.2);
+    let n = 0;
     for (const c of cs) {
+      if (!b.contains([c.lat, c.lng])) continue;
+      if (++n > 6000) break;
       L.circleMarker([c.lat, c.lng], { radius: 2.5, color: '#b45309', weight: 1, fillColor: '#fbbf24', fillOpacity: 0.9, interactive: true, bubblingMouseEvents: true })
         .bindTooltip(`Pelanggan ${esc(c.idpel || '-')}<br>${c.va ? fmt.n(c.va, 0) + ' VA' : 'daya ?'} · gardu ${esc(c.gd)}`)
         .addTo(this.custLayer);
@@ -523,7 +547,8 @@ const MapView = {
     const d = Store.data;
     const byType = Object.keys(ASSET_TYPES).map(k => [k, d.assets.filter(a => a.type === k).length]).filter(x => x[1]);
     const feeders = {};
-    d.lines.forEach(l => { const f = l.feeder || '(tanpa penyulang)'; feeders[f] = (feeders[f] || 0) + Store.lineLength(l); });
+    let jtrM = 0;
+    d.lines.forEach(l => { if (l.level === 'JTR') { jtrM += Store.lineLength(l); return; } const f = l.feeder || '(tanpa penyulang)'; feeders[f] = (feeders[f] || 0) + Store.lineLength(l); });
     if (!d.assets.length) return `
       <div class="empty">
         <h3>Mulai dari sini</h3>
@@ -539,12 +564,13 @@ const MapView = {
       <div class="chips">${byType.map(([k, n]) => `<span class="chip" style="--c:${ASSET_TYPES[k].color}"><i></i>${ASSET_TYPES[k].short} ${n}</span>`).join('')}</div>
       <table class="kv">
         <tr><td>Total aset</td><td><b>${d.assets.length}</b></td></tr>
-        <tr><td>Total saluran</td><td><b>${d.lines.length}</b> ruas · ${fmt.m(d.lines.reduce((s, l) => s + Store.lineLength(l), 0))}</td></tr>
+        <tr><td>JTM</td><td><b>${d.lines.filter(l => l.level !== 'JTR').length}</b> ruas · ${fmt.m(Object.values(feeders).reduce((s, v) => s + v, 0))}</td></tr>
+        ${jtrM ? `<tr><td>JTR</td><td><b>${d.lines.filter(l => l.level === 'JTR').length}</b> ruas · ${fmt.m(jtrM)}</td></tr>` : ''}
         ${(d.customers || []).length ? `<tr><td>Pelanggan (APP)</td><td><b>${fmt.n(d.customers.length, 0)}</b></td></tr>` : ''}
         ${d.lines.some(l => l.gap) ? `<tr><td>Ruas perlu dicek</td><td class="bad">${d.lines.filter(l => l.gap).length} ruas (merah putus-putus)</td></tr>` : ''}
         <tr><td>Kapasitas trafo</td><td><b>${fmt.n(d.assets.filter(a => a.type === 'GD').reduce((s, a) => s + (num(a.kva) || 0), 0), 0)} kVA</b></td></tr>
       </table>
-      <h4>Panjang per penyulang</h4>
+      <h4>Panjang JTM per penyulang</h4>
       <ul class="mini">${Object.entries(feeders).sort().map(([f, m]) => `<li><span class="sw" style="background:${feederColor(f === '(tanpa penyulang)' ? '' : f)}"></span>${esc(f)} — <b>${fmt.m(m)}</b></li>`).join('')}</ul>
       <p class="hint">Tip: gunakan layer <b>Satelit</b> (kanan atas peta) untuk menelusuri jalur tiang dari citra.</p>`;
   },
