@@ -4,7 +4,7 @@
  * ============================================================ */
 
 const SldView = {
-  rootId: null, opt: { stopOpen: true, showLen: true, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true, perFeeder: true },
+  rootId: null, opt: { stopOpen: true, showLen: true, showCond: true, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true, perFeeder: true },
   render() {
     const el = document.getElementById('view-sld');
     const src = [...AnalysisView.sources(), ...Store.data.assets.filter(a => a.type === 'GD').sort((a, b) => String(a.code).localeCompare(b.code))];
@@ -17,7 +17,8 @@ const SldView = {
           ${!inList && cur ? `<option value="${cur.id}" selected>${esc(cur.code)} — ${esc(ASSET_TYPES[cur.type].label)}</option>` : ''}
           ${src.map(a => `<option value="${a.id}" ${a.id === this.rootId ? 'selected' : ''}>${esc(a.code)} — ${esc(ASSET_TYPES[a.type].label)}</option>`).join('')}</select></label>
         <label class="chk"><input type="checkbox" data-so="stopOpen" ${this.opt.stopOpen ? 'checked' : ''}> Berhenti di saklar NO</label>
-        <label class="chk"><input type="checkbox" data-so="showLen" ${this.opt.showLen ? 'checked' : ''}> Panjang & penghantar</label>
+        <label class="chk"><input type="checkbox" data-so="showLen" ${this.opt.showLen ? 'checked' : ''}> Panjang</label>
+        <label class="chk"><input type="checkbox" data-so="showCond" ${this.opt.showCond ? 'checked' : ''}> Jenis penghantar</label>
         <label class="chk"><input type="checkbox" data-so="showName" ${this.opt.showName ? 'checked' : ''}> Nama</label>
         <label class="chk"><input type="checkbox" data-so="collapse" ${this.opt.collapse ? 'checked' : ''}> Ringkas tiang lurus</label>
         <label class="chk"><input type="checkbox" data-so="hidePoles" ${this.opt.hidePoles ? 'checked' : ''}> Sembunyikan label tiang</label>
@@ -28,6 +29,13 @@ const SldView = {
         <button class="btn" onclick="SLD.zoom(0.8)">＋</button><button class="btn" onclick="SLD.zoom(1.25)">－</button><button class="btn" onclick="SLD.fit()">Pas</button>
         <button class="btn" onclick="SLD.exportSvg()">⬇ SVG</button><button class="btn" onclick="SLD.exportPng()">⬇ PNG</button><button class="btn" onclick="SLD.print()">🖨 Cetak</button>
       </div>
+      <div class="toolbar wrap kop-edit">
+        <span class="muted small">Kop:</span>
+        <label class="f sm"><span>Nomor gambar</span><input data-kp="drawingNo" value="${esc(Store.data.params.drawingNo || '')}"></label>
+        <label class="f"><span>Diperiksa</span><input data-kp="checkedBy" value="${esc(Store.data.params.checkedBy || '')}" placeholder="nama / jabatan"></label>
+        <label class="f"><span>Disetujui</span><input data-kp="approvedBy" value="${esc(Store.data.params.approvedBy || '')}" placeholder="nama / jabatan"></label>
+        <span class="muted small">Kolom "Digambar" berisi cap SIPELA.</span>
+      </div>
       <div id="sldInfo" class="sld-info muted">${Store.data.assets.some(a => ASSET_TYPES[a.type]?.source) ? 'Scroll untuk zoom, geser untuk pan, klik simbol untuk info.' : '⚠ Belum ada PLTD/GI sebagai sumber — SLD sementara digambar dari aset terpilih. Tambahkan PLTD di peta lalu sambungkan ke jaringan.'}</div>
       <div id="sldWrap"></div>
       <div class="legend">${Object.entries(ASSET_TYPES).map(([k, T]) => `<span><svg width="34" height="30" viewBox="-17 -15 34 30"><line x1="-17" x2="17" stroke="#1f2937" stroke-width="2"/>${SLD.symbol({ type: k, status: 'NC' })}</svg>${T.label}</span>`).join('')}
@@ -36,6 +44,8 @@ const SldView = {
         <span><svg width="40" height="12"><line x1="0" y1="6" x2="40" y2="6" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/></svg>Tie / titik buka</span></div>`;
     el.querySelector('#sRoot').onchange = e => { this.rootId = e.target.value; this.draw(); };
     el.querySelectorAll('[data-so]').forEach(c => c.onchange = () => { this.opt[c.dataset.so] = c.checked; this.draw(); });
+    el.querySelectorAll('[data-kp]').forEach(i => i.onchange = () => { Store.data.params[i.dataset.kp] = i.value.trim(); Store.persist(); this.draw(); });
+    SLD.loadLogo();
     this.draw();
   },
   draw() {

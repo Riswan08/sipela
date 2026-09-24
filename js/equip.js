@@ -222,3 +222,54 @@ const EquipImport = {
     };
   },
 };
+
+/* ============================================================
+ * Plant: susunan keluaran pembangkit — G → CB → trafo step-up → CB → busbar 20 kV →
+ * CB tiap penyulang → jalur penyulang. Disusun otomatis saat pembangkit ditaruh.
+ * ============================================================ */
+const Plant = {
+  KINDS: { PLTD: { label: 'PLTD (diesel)', gkv: 0.4 }, PLTMG: { label: 'PLTMG (gas)', gkv: 11 }, PLTS: { label: 'PLTS', gkv: 0.4 }, PLTU: { label: 'PLTU', gkv: 11 }, PLTMH: { label: 'PLTMH', gkv: 6.3 }, LAIN: { label: 'Lainnya', gkv: 20 } },
+  // sambungkan pembangkit ke jaringan: lewat GI (bila ada) atau CB per penyulang yang dibuat di sekitar pembangkit
+  setup(id, o = {}) {
+    const g = Store.asset(id); if (!g) return [];
+    const msgs = [];
+    const gi = Store.data.assets.find(a => a.type === 'GI');
+    const feeders = Store.feeders().filter(f => Store.data.lines.some(l => l.feeder === f && l.level !== 'JTR'));
+    Store.mutate(d => {
+      if (!g.gen) g.gen = 'PLTD';
+      if (g.gkv == null) g.gkv = this.KINDS[g.gen]?.gkv ?? 0.4;
+      // sambungan langsung pembangkit → tiang (dari "sambung ke jaringan terdekat") diganti susunan CB/busbar
+      d.lines = d.lines.filter(l => { if (l.from !== g.id && l.to !== g.id) return true; const o = Store.asset(l.from === g.id ? l.to : l.from); return o && (o.type === 'GI' || o.sub === 'cb'); });
+      if (gi) {
+        if (!Store.linesOf(g.id).some(l => l.from === gi.id || l.to === gi.id))
+          Store._newLine({ from: g.id, to: gi.id, level: 'JTM', conductor: 'XLPE-240', feeder: '', note: `Keluaran ${g.code} → busbar ${gi.code} (trafo step-up ${g.gkv}/20 kV)` });
+        msgs.push(`${g.code} disambung ke busbar ${gi.code}; ${Store.linesOf(gi.id).filter(l => l.to !== g.id && l.from !== g.id).length} penyulang keluar dari GI`);
+        return;
+      }
+      let k = 0;
+      for (const f of feeders) {
+        let cb = d.assets.find(a => a.sub === 'cb' && a.feeder === f);
+        if (!cb) {
+          // CB baru di sisi pembangkit (berjajar ±25 m ke timur)
+          const [lat, lng] = Geo.offset(g.lat, g.lng, 40 + 25 * k, -20);
+          cb = Store._newAsset({ type: 'REC', sub: 'cb', code: 'CB F. ' + f, name: 'Outgoing ' + f, feeder: f, lat: +lat.toFixed(7), lng: +lng.toFixed(7), status: 'NC', src: 'plant', note: 'CB penyulang di busbar 20 kV ' + g.code });
+          k++;
+        }
+        if (!Store.linesOf(g.id).some(l => l.from === cb.id || l.to === cb.id))
+          Store._newLine({ from: g.id, to: cb.id, level: 'JTM', conductor: 'XLPE-240', feeder: f, note: `Busbar 20 kV ${g.code} → ${cb.code}` });
+        // CB → tiang awal penyulang (tiang penyulang itu yang terdekat dari pembangkit)
+        if (!Store.linesOf(cb.id).some(l => l.from !== g.id && l.to !== g.id)) {
+          const near = EquipImport.nearestPole([g.lat, g.lng], 15000, f);
+          if (near) {
+            const gap = near.d > 1500;
+            Store._newLine({ from: cb.id, to: near.a.id, level: 'JTM', conductor: Store.linesOf(near.a.id)[0]?.conductor || 'AAAC-150', feeder: f, auto: true, gap,
+              note: `Keluaran ${f} dari ${g.code} ke ${near.a.code} (${Math.round(near.d)} m)` + (gap ? ' — jauh, cek jalur' : '') });
+            msgs.push(`${cb.code} → ${near.a.code} (${fmt.m(near.d)})${gap ? ' ⚠ jauh' : ''}`);
+          } else msgs.push(`${cb.code}: tidak ada tiang TM penyulang ${f} dalam 15 km`);
+        }
+      }
+      if (!feeders.length) msgs.push('Belum ada jaringan JTM berlabel penyulang di sistem ini — import GIS dulu, lalu klik "Susun keluaran" lagi');
+    }, 'plant');
+    return msgs;
+  },
+};

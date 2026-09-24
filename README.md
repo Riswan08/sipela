@@ -63,9 +63,13 @@ Peralatan **tanpa koordinat** masuk daftar **"Peralatan belum bertikor"** di tab
 
 SLD dari sumber (PLTD/GI) menggambar **satu keluaran per penyulang** dari bus 20 kV (opsi "Satu keluaran per penyulang"); panjang keluaran = jarak jaringan dari sumber ke titik awal penyulang.
 
+## Pembangkit & busbar
+
+Tambahkan pembangkit lewat koordinat (jenis PLTD / PLTMG / PLTS, tegangan generator, jumlah unit, daya). Aplikasi otomatis **menyusun keluarannya**: G → CB generator → trafo step-up (0,4/20 kV untuk PLTD, 11/20 kV untuk PLTMG) → CB 20 kV → **busbar 20 kV** → **CB tiap penyulang** (dibuat di sekitar pembangkit dan disambung ke tiang awal penyulangnya). Bila sistem punya GI, pembangkit disambung ke busbar GI dan penyulang keluar dari CB GI. Tombol **⚙ Susun keluaran** di panel pembangkit mengulang proses ini (mis. setelah import GIS).
+
 ## Keterangan & kop gambar SLD
 
-SLD memakai simbol gaya PLN (R hitam/putih = recloser NC/NO, M = LBS motorised, S = sectionalizer, kupu-kupu = LBS manual, FCO, gardu beton/tiang/cantol, gardu belum aktif/rusak, label kuning Key Point SCADA). Di kanan gambar ada panel **Keterangan** dan **kop** (UIW, UP3, ULP, Sistem, Penyulang/sumber, Nomor Gambar, Tanggal, Digambar/Diperiksa/Disetujui). Isi UIW/UP3/nomor gambar/nama penanda tangan di **Data → Kop gambar SLD**; ULP dan nama sistem diambil dari sistem aktif. Jenis saklar, jenis gardu, kondisi, dan tanda SCADA diisi di panel aset pada peta.
+SLD memakai simbol gaya PLN (R hitam/putih = recloser NC/NO, M = LBS motorised, S = sectionalizer, kupu-kupu = LBS manual, FCO, gardu beton/tiang/cantol, gardu belum aktif/rusak, label kuning Key Point SCADA). Di kanan gambar ada panel **Keterangan** dan **kop** (UIW, UP3, ULP, Sistem, Penyulang/sumber, Nomor Gambar, Tanggal, Digambar/Diperiksa/Disetujui). Isi Nomor gambar / Diperiksa / Disetujui langsung di bilah kop pada tab SLD (atau **Data → Kop gambar SLD**); kolom *Digambar* berisi cap logo SIPELA. Panel keterangan & kop berskala mengikuti besar SLD agar tetap terbaca dalam satu lembar. Jenis penghantar bisa disembunyikan lewat centang; ULP dan nama sistem diambil dari sistem aktif. Jenis saklar, jenis gardu, kondisi, dan tanda SCADA diisi di panel aset pada peta.
 
 ## Banyak sistem dalam satu aplikasi
 

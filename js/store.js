@@ -9,7 +9,7 @@ const LEGACY_KEYS = ['sipersis.v1'];
 // Jenis aset jaringan distribusi. sw = peralatan hubung (punya status NO/NC),
 // load = punya kapasitas kVA (dipakai di analisis beban & drop tegangan).
 const ASSET_TYPES = {
-  PLTD:  { label: 'PLTD / Pembangkit',        short: 'PL',  color: '#9f1239', source: true },
+  PLTD:  { label: 'Pembangkit (PLTD/PLTMG/PLTS)', short: 'G', color: '#9f1239', source: true },
   GI:    { label: 'Gardu Induk',              short: 'GI',  color: '#b91c1c', source: true },
   GH:    { label: 'Gardu Hubung',             short: 'GH',  color: '#7c3aed' },
   GD:    { label: 'Gardu Distribusi / Trafo', short: 'GD',  color: '#0369a1', load: true },

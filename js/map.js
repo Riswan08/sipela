@@ -440,6 +440,7 @@ const MapView = {
       if (code && Store.byCode(code)) return App.toast(`Kode ${code} sudah dipakai aset lain`);
       this.placeAsset(p, { code, name });
       this.map.setView(p, Math.max(this.map.getZoom(), 16));
+      if (this.opts.type === 'PLTD' && this.lastAssetId) { const m = Plant.setup(this.lastAssetId); App.toast('Keluaran pembangkit disusun: ' + (m[0] || '')); setTimeout(() => App.showSld(this.lastAssetId), 900); }
     };
   },
 
@@ -453,6 +454,7 @@ const MapView = {
       const k = inp.dataset.k;
       let v = inp.type === 'checkbox' ? inp.checked : inp.value;
       if (inp.dataset.num !== undefined) v = num(v);
+      if (k === 'gen') { Store.mutate(() => { const o = Store.asset(s.id); o.gen = v; o.gkv = Plant.KINDS[v]?.gkv ?? o.gkv; }, 'edit'); return; }
       if (k === 'kondisi') { Store.mutate(() => { const o = Store.asset(s.id); o.rusak = v === 'rusak'; o.aktif = v === 'belum' ? false : true; }, 'edit'); return; }
       if (k === 'code' && v && Store.byCode(v) && Store.byCode(v).id !== s.id) { App.toast(`Kode ${v} sudah dipakai aset lain`); inp.value = Store.asset(s.id).code; return; }
       Store.mutate(() => { const o = s.kind === 'asset' ? Store.asset(s.id) : Store.line(s.id); o[k] = v; }, 'edit');
@@ -472,6 +474,7 @@ const MapView = {
     if (act === 'toggle') return Store.mutate(() => { const a = Store.asset(s.id); a.status = a.status === 'NO' ? 'NC' : 'NO'; }, 'edit');
     if (act === 'connect') { this.setMode('line'); this.draft = { from: s.id, pts: [] }; this.renderModeOpts(); this.renderDraft(); }
     if (act === 'autoconnect') return this.autoConnect(s.id);
+    if (act === 'plant') { const m = Plant.setup(s.id); App.toast(m[0] || 'Selesai'); setTimeout(() => App.showSld(s.id), 700); return; }
   },
 
   // sambungkan aset ke aset jaringan terdekat (tiang TM / gardu / GH) dengan satu ruas JTM
@@ -517,6 +520,14 @@ const MapView = {
         <label class="f"><span>Latitude</span><input data-k="lat" data-num value="${a.lat ?? ''}"></label>
         <label class="f"><span>Longitude</span><input data-k="lng" data-num value="${a.lng ?? ''}"></label>
       </div>
+      ${T.source && a.type === 'PLTD' ? `<div class="grid2">
+        <label class="f"><span>Jenis pembangkit</span><select data-k="gen">${Object.entries(Plant.KINDS).map(([k, v]) => `<option value="${k}" ${(a.gen || 'PLTD') === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
+        <label class="f"><span>Tegangan generator (kV)</span><input data-k="gkv" data-num inputmode="decimal" value="${a.gkv ?? Plant.KINDS[a.gen || 'PLTD'].gkv}"></label>
+        <label class="f"><span>Jumlah unit</span><input data-k="units" data-num inputmode="numeric" value="${a.units ?? ''}"></label>
+        <label class="f"><span>Daya mampu (kW)</span><input data-k="kw" data-num inputmode="decimal" value="${a.kw ?? ''}"></label>
+        <label class="f"><span>Pemilik / operator</span><input data-k="owner" value="${esc(a.owner || 'PLN')}"></label>
+      </div>
+      <button class="btn primary block" data-act="plant">⚙ Susun keluaran: trafo step-up ${a.gkv ?? Plant.KINDS[a.gen || 'PLTD'].gkv}/20 kV → busbar → CB tiap penyulang</button>` : ''}
       ${T.load ? `<div class="grid2">
         <label class="f"><span>Kapasitas (kVA)</span><input data-k="kva" data-num inputmode="decimal" value="${a.kva ?? ''}"></label>
         <label class="f"><span>Beban (kVA) ukur/estimasi</span><input data-k="loadKva" data-num inputmode="decimal" value="${a.loadKva ?? ''}" placeholder="atau isi % beban →"></label>

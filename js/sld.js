@@ -104,7 +104,10 @@ const SLD = {
     Store.data.lines.forEach(l => {
       if (treeLines.has(l.id) || (base.jtmOnly && l.level === 'JTR')) return;
       const inF = nodes.has(l.from), inT = nodes.has(l.to);
-      if (inF || inT) ties.push({ line: l, a: inF ? l.from : l.to, b: inF ? l.to : l.from, bothIn: inF && inT });
+      if (!(inF || inT)) return;
+      const other = Store.asset(inF ? l.to : l.from);
+      if ((l.from === root.id || l.to === root.id) && other && other.type === 'GI') return; // sumber → GI: itu busbar, bukan tie
+      ties.push({ line: l, a: inF ? l.from : l.to, b: inF ? l.to : l.from, bothIn: inF && inT });
     });
     const order = [], st = [R];
     while (st.length) { const n = st.pop(); order.push(n); for (let i = n.children.length - 1; i >= 0; i--) st.push(n.children[i]); }
@@ -140,7 +143,8 @@ const SLD = {
     const scada = a.scada ? `<rect x="-16" y="-34" width="32" height="11" fill="#fde047" stroke="#111" stroke-width=".8"/><text y="-25.5" text-anchor="middle" font-size="7" font-weight="700" fill="#111">SCADA</text>` : '';
     switch (a.type) {
       case 'PLTD': return `<circle r="16" fill="#fff" stroke="${K}" stroke-width="2"/>
-        <text y="6" text-anchor="middle" font-weight="700" font-size="16" fill="${K}">G</text>${scada}`;
+        <text y="6" text-anchor="middle" font-weight="700" font-size="16" fill="${K}">G</text>
+        ${a.gen ? `<text y="-21" text-anchor="middle" font-size="8" font-weight="700" fill="${K}">${esc(a.gen)}${a.units ? ' · ' + a.units + ' unit' : ''}</text>` : ''}${scada}`;
       case 'GI': return `<rect x="-26" y="-20" width="52" height="40" fill="#fff" stroke="${K}" stroke-width="2"/>
         <line x1="-8" y1="-13" x2="-8" y2="13" stroke="${K}" stroke-width="3"/><line x1="-8" y1="0" x2="10" y2="0" stroke="${K}" stroke-width="2"/><rect x="8" y="-5" width="10" height="10" fill="${K}"/>
         <text y="30" text-anchor="middle" font-size="8" font-weight="700" fill="${K}">GI</text>${scada}`;
@@ -207,22 +211,25 @@ const SLD = {
       ${fields.map((f, i) => `<line x1="${x}" y1="${ky + 68 + (i + 1) * lh}" x2="${x + w}" y2="${ky + 68 + (i + 1) * lh}" stroke="#111" stroke-width=".8"/>
         <text x="${x + 8}" y="${ky + 68 + i * lh + 16}" class="kf">${esc(f[0])}</text><text x="${x + 128}" y="${ky + 68 + i * lh + 16}" class="kf">: ${esc(String(f[1] ?? ''))}</text>`).join('')}
       ${['Digambar', 'Diperiksa', 'Disetujui'].map((h, i) => { const cx = x + i * w / 3, val = [P.drawnBy, P.checkedBy, P.approvedBy][i] || ''; const ty = ky + 68 + fields.length * lh;
+        const stamp = i === 0 && this.logoData ? `<image href="${this.logoData}" x="${cx + w / 6 - 18}" y="${ty + 25}" width="36" height="36"/><text x="${cx + w / 6}" y="${ty + 66}" text-anchor="middle" class="kf" font-size="9" fill="#1e3a8a" font-weight="700">SIPELA</text>` : `<text x="${cx + w / 6}" y="${ty + 60}" text-anchor="middle" class="kf">${esc(val || (i === 0 ? 'SIPELA' : ''))}</text>`;
         return `<line x1="${cx}" y1="${ty}" x2="${cx}" y2="${ty + 70}" stroke="#111" stroke-width=".8"/><text x="${cx + w / 6}" y="${ty + 16}" text-anchor="middle" class="kf" font-weight="700">${h}</text>
-          <line x1="${cx}" y1="${ty + 22}" x2="${cx + w / 3}" y2="${ty + 22}" stroke="#111" stroke-width=".8"/><text x="${cx + w / 6}" y="${ty + 60}" text-anchor="middle" class="kf">${esc(val)}</text>`; }).join('')}
+          <line x1="${cx}" y1="${ty + 22}" x2="${cx + w / 3}" y2="${ty + 22}" stroke="#111" stroke-width=".8"/>${stamp}`; }).join('')}
       <text x="${x + w}" y="${ky + 72 + fields.length * lh + 70 + 14}" text-anchor="end" class="sub">${count} aset · digambar otomatis SIPELA — verifikasi lapangan diperlukan</text>`;
     return { svg: `<rect x="${x}" y="${y}" width="${w}" height="${legendH}" fill="#f1f5f9" stroke="#111" stroke-width="1"/>
       <text x="${x + 14}" y="${y + 24}" class="kt" font-size="14">Keterangan :</text>${rows.join('')}${kop}`, h: legendH + 10 + 72 + fields.length * lh + 70 + 24 };
   },
 
   render(rootId, opt = {}) {
-    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, perFeeder: true, ...opt };
+    opt = { stopOpen: true, showLen: true, showCond: true, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, perFeeder: true, ...opt };
     const t = this.build(rootId, opt);
     if (!t) return null;
     const { gapX, gapY, pad } = this;
     const X = n => pad + n.col * gapX, Y = n => pad + 40 + n.row * gapY;
     let maxCol = 0, maxRow = 0;
     t.order.forEach(n => { maxCol = Math.max(maxCol, n.col); maxRow = Math.max(maxRow, n.row); });
-    const PW = opt.legend ? 430 : 0;  // lebar panel keterangan + kop di kanan
+    const rawH = pad * 2 + 40 + maxRow * gapY + 40;
+    const PS = opt.legend ? Math.max(1, Math.min(6, rawH / 900)) : 1;   // skala panel agar sebanding dengan gambar
+    const PW = opt.legend ? Math.round(430 * PS) : 0;  // lebar panel keterangan + kop di kanan
     const W = pad * 2 + maxCol * gapX + 120 + PW, H = pad * 2 + 40 + maxRow * gapY + 40;
     const edges = [], labels = [], nodes = [], ties = [];
 
@@ -239,8 +246,9 @@ const SLD = {
         if (opt.showLen) {
           const mx = (sx + x) / 2;
           const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
+          const condTxt = [opt.showCond ? l.conductor : '', l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
           labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len">${fmt.m(Store.lineLength(l))}</text>
-            <text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(l.conductor)}${l.spans ? ` · ${l.spans} gawang` : ''}</text>`);
+            ${condTxt ? `<text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(condTxt)}</text>` : ''}`);
         }
       }
       const a = n.asset;
@@ -254,7 +262,18 @@ const SLD = {
       }
       if (!n.parent && n.children.length > 1 && ASSET_TYPES[a.type]?.source) {
         const ys = n.children.map(c => Y(c)); const bx = x + gapX / 2;
-        edges.push(`<line x1="${bx}" y1="${Math.min(y, ...ys) - 16}" x2="${bx}" y2="${Math.max(y, ...ys) + 16}" stroke="#111" stroke-width="6"/><text x="${bx}" y="${Math.min(y, ...ys) - 22}" text-anchor="middle" class="len">Busbar 20 kV</text>`);
+        const viaGI = n.children.every(c => /via GI/i.test(c.line.note || '')) ? Store.data.assets.find(z => z.type === 'GI') : null;
+        edges.push(`<line x1="${bx}" y1="${Math.min(y, ...ys) - 16}" x2="${bx}" y2="${Math.max(y, ...ys) + 16}" stroke="#111" stroke-width="6"/><text x="${bx}" y="${Math.min(y, ...ys) - 22}" text-anchor="middle" class="len">Busbar 20 kV${viaGI ? ' ' + esc(viaGI.code) : ''}</text>`);
+        if (a.type === 'PLTD') {
+          // rantai keluaran pembangkit di atas garis G → busbar: CB generator (oranye), trafo step-up, CB 20 kV
+          const gkv = a.gkv ?? Plant.KINDS[a.gen || 'PLTD']?.gkv ?? 0.4;
+          edges.push(`<rect x="${x + 26}" y="${y - 5}" width="10" height="10" fill="#f59e0b"/>
+            <circle cx="${x + 49}" cy="${y}" r="7" fill="#fff" stroke="#f59e0b" stroke-width="1.6"/><circle cx="${x + 57}" cy="${y}" r="7" fill="#fff" fill-opacity="0" stroke="#111" stroke-width="1.6"/>
+            <text x="${x + 53}" y="${y - 12}" text-anchor="middle" class="cond" font-weight="700">${fmt.n(gkv, 1)}/20 kV</text>
+            <rect x="${x + 70}" y="${y - 6}" width="12" height="12" fill="#111"/>`);
+        }
+        // CB penyulang di busbar (kotak hitam kecil) untuk tiap keluaran yang bukan CB
+        n.children.forEach(c => { if (c.asset.sub !== 'cb') edges.push(`<rect x="${bx + 14}" y="${Y(c) - 6}" width="12" height="12" fill="#111"/>`); });
       }
       nodes.push(`<g class="node" data-id="${a.id}" transform="translate(${x},${y})"><title>${esc(ASSET_TYPES[a.type]?.label)} ${esc(a.code)}</title>${this.symbol(a)}${lbl}</g>`);
     }
@@ -272,8 +291,9 @@ const SLD = {
       <text x="${pad - 50}" y="54" class="sub">${esc(Store.data.meta.name)} · ${t.order.length} aset · digambar otomatis ${new Date().toLocaleDateString('id-ID')} · verifikasi lapangan diperlukan</text></g>`;
     let panel = '', Hfinal = Math.max(H, 200);
     if (opt.legend) {
-      const lp = this.legendPanel(W - PW + 10, 20, PW - 30, root, t.order.length);
-      panel = lp.svg; Hfinal = Math.max(Hfinal, lp.h + 40);
+      const lp = this.legendPanel(0, 0, 400, root, t.order.length);
+      panel = `<g transform="translate(${W - PW + 10 * PS},${20 * PS}) scale(${PS})">${lp.svg}</g>`;
+      Hfinal = Math.max(Hfinal, lp.h * PS + 40 * PS);
     }
     this.size = [W, Hfinal];
     this.rootId = rootId;
@@ -287,6 +307,12 @@ const SLD = {
       </style>
       <rect width="100%" height="100%" fill="#fff"/>${title}${edges.join('')}${labels.join('')}${ties.map(s => s.svg).join('')}${nodes.join('')}${panel}
     </svg>`;
+  },
+
+  loadLogo() {
+    if (this.logoData || this._logoReq) return;
+    this._logoReq = fetch('img/icon-192.png').then(r => r.blob()).then(b => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); }))
+      .then(d => { this.logoData = d; if (App.view === 'sld') SldView.draw(); }).catch(() => {});
   },
 
   /* ---------- tampilan interaktif (pan / zoom) ---------- */
