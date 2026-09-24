@@ -37,7 +37,7 @@ const SldView = {
         <label class="f"><span>Disetujui</span><input data-kp="approvedBy" value="${esc(Store.data.params.approvedBy || '')}" placeholder="nama / jabatan"></label>
         <span class="muted small">Kolom "Digambar" berisi cap SIPELA.</span>
       </div>
-      <div id="sldInfo" class="sld-info muted">${Store.data.assets.some(a => ASSET_TYPES[a.type]?.source) ? 'Scroll untuk zoom, geser untuk pan, klik simbol untuk info.' : '⚠ Belum ada PLTD/GI sebagai sumber — SLD sementara digambar dari aset terpilih. Tambahkan PLTD di peta lalu sambungkan ke jaringan.'}</div>
+      <div id="sldInfo" class="sld-info muted">${Store.data.assets.some(a => ASSET_TYPES[a.type]?.source) ? 'Scroll untuk zoom, geser untuk pan, klik simbol → lokasi di peta (Shift+klik = SLD dari aset itu).' : '⚠ Belum ada PLTD/GI sebagai sumber — SLD sementara digambar dari aset terpilih. Tambahkan PLTD di peta lalu sambungkan ke jaringan.'}</div>
       <div id="sldWrap"></div>
       <div class="legend">${Object.entries(ASSET_TYPES).map(([k, T]) => `<span><svg width="34" height="30" viewBox="-17 -15 34 30"><line x1="-17" x2="17" stroke="#1f2937" stroke-width="2"/>${SLD.symbol({ type: k, status: 'NC' })}</svg>${T.label}</span>`).join('')}
         <span><svg width="34" height="30" viewBox="-17 -15 34 30"><line x1="-17" x2="17" stroke="#1f2937" stroke-width="2"/>${SLD.symbol({ type: 'LBS', status: 'NO' })}</svg>Saklar NO</span>

@@ -371,7 +371,7 @@ const SLD = {
     window.addEventListener('pointerup', e => {
       if (drag && !drag.moved) {
         const g = e.target.closest && e.target.closest('.node');
-        if (g) this.onNodeClick(g.dataset.id);
+        if (g) this.onNodeClick(g.dataset.id, e);
       }
       drag = null;
     });
@@ -396,14 +396,13 @@ const SLD = {
     this.setVb([0, 0, w, h]);
   },
   zoom(f) { const [x, y, w, h] = this.vb; this.setVb([x + w * (1 - f) / 2, y + h * (1 - f) / 2, w * f, h * f]); },
-  onNodeClick(id) {
+  // klik simbol di SLD → langsung ke peta, aset dipilih & di-zoom (tekan Shift = SLD dari aset itu)
+  onNodeClick(id, ev) {
     const a = Store.asset(id); if (!a) return;
-    const el = document.getElementById('sldInfo');
+    if (ev && ev.shiftKey) { App.showSld(a.id); return; }
     const n = this.tree?.nodes.get(id);
-    el.innerHTML = `<b>${esc(a.code)}</b> ${esc(a.name)} · ${esc(ASSET_TYPES[a.type]?.label)}${a.kva ? ' · ' + fmt.n(a.kva, 0) + ' kVA' : ''}
-      ${n ? ` · jarak dari sumber <b>${fmt.m(n.dist)}</b>` : ''}
-      <button class="btn sm" onclick="App.focusAsset('${a.id}')">Lihat di peta</button>
-      <button class="btn sm" onclick="App.showSld('${a.id}')">SLD dari sini</button>`;
+    App.focusAsset(a.id);
+    App.toast(`${a.code}${a.name ? ' · ' + a.name : ''}${n ? ' · ' + fmt.m(n.dist) + ' dari sumber' : ''} — kembali ke tab SLD untuk lanjut`);
   },
 
   /* ---------- ekspor ---------- */
