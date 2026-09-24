@@ -73,23 +73,49 @@ const SLD = {
     const nodes = new Map([[root.id, { ...root, children: [] }]]);
     const R = nodes.get(root.id);
     const used = new Set([root.id]);
+    t.gaps = 0;
+    // tambahkan sub-pohon penyulang f mulai dari aset startId, digantung ke parentId dengan ruas `line`
+    const addSub = (startId, f, parentId, line, baseDist, blocked) => {
+      const sub = Net.tree(startId, { ...base, feederOnly: f, blocked });
+      if (!sub.root) return [];
+      const added = [];
+      for (const n of sub.order) {
+        if (n !== sub.root && used.has(n.id)) continue;
+        const m = { id: n.id, asset: n.asset, dist: baseDist + n.dist, parent: n === sub.root ? parentId : n.parent, line: n === sub.root ? line : n.line, children: [] };
+        nodes.set(n.id, m); used.add(n.id); added.push(m);
+      }
+      return added;
+    };
     const ordered = [...heads.entries()].sort((a, b) => a[1].dist - b[1].dist);
     for (const [f, h] of ordered) {
       if (used.has(h.id)) continue;
-      // simpul di jalur sumber→awal penyulang tidak boleh dimasuki lagi
       const blocked = new Set(used);
       for (let q = t.nodes.get(h.parent); q && q !== root; q = t.nodes.get(q.parent)) blocked.add(q.id);
-      const sub = Net.tree(h.id, { ...base, feederOnly: f, blocked });
-      if (!sub.root) continue;
-      for (const n of sub.order) {
-        if (n !== sub.root && used.has(n.id)) continue;
-        const m = { id: n.id, asset: n.asset, dist: h.dist + n.dist, parent: n === sub.root ? root.id : n.parent, line: n.line, children: [] };
-        if (n === sub.root) {
-          const direct = h.parent === root.id;
-          const via = []; for (let q = t.nodes.get(h.parent); q && q !== root; q = t.nodes.get(q.parent)) via.unshift(q);
-          m.line = direct ? h.line : { id: 'f' + h.id, level: 'JTM', conductor: h.line.conductor, feeder: f, lengthM: h.dist, spans: via.length + 1, note: `via ${via[0].asset.code}` };
+      const direct = h.parent === root.id;
+      const via = []; for (let q = t.nodes.get(h.parent); q && q !== root; q = t.nodes.get(q.parent)) via.unshift(q);
+      const line = direct ? h.line : { id: 'f' + h.id, level: 'JTM', conductor: h.line.conductor, feeder: f, lengthM: h.dist, spans: via.length + 1, note: `via ${via[0].asset.code}` };
+      const tree = addSub(h.id, f, root.id, line, h.dist, blocked);
+      if (!tree.length) continue;
+      // ---- lengkapi sampai ujung: kelompok penyulang f yang belum tersambung digantung ke titik terdekat ----
+      if (opt.fillGaps !== false) {
+        const inF = a => a.feeder === f && a.sub !== 'TR' && !used.has(a.id);
+        let remaining = Store.data.assets.filter(inF);
+        let guard = 0;
+        while (remaining.length && guard++ < 400) {
+          // pasangan (aset sisa, simpul tergambar) terdekat
+          let best = null;
+          for (const a of remaining) for (const m of tree) {
+            const dd = Geo.dist([a.lat, a.lng], [m.asset.lat, m.asset.lng]);
+            if (!best || dd < best.d) best = { a, m, d: dd };
+          }
+          if (!best || best.d > (opt.maxGapM || 20000)) break;
+          const gline = { id: 'g' + best.a.id, level: 'JTM', conductor: '', feeder: f, lengthM: best.d, gap: true, note: 'belum tertaging — jarak garis lurus' };
+          const added = addSub(best.a.id, f, best.m.id, gline, best.m.dist + best.d, new Set(used));
+          if (!added.length) { used.add(best.a.id); remaining = remaining.filter(x => x.id !== best.a.id); continue; }
+          t.gaps++;
+          tree.push(...added);
+          remaining = remaining.filter(x => !used.has(x.id));
         }
-        nodes.set(n.id, m); used.add(n.id);
       }
     }
     // susun anak (hanya simpul yang orang tuanya ikut terpakai)
@@ -124,7 +150,7 @@ const SLD = {
       const n = stack.pop();
       n.children = n.children.map(c => {
         let len = Store.lineLength(c.line), first = c.line, k = 1;
-        while (!keep(c)) { c = c.children[0]; len += Store.lineLength(c.line); k++; }
+        while (!keep(c) && !c.children[0].line.gap && !c.line.gap) { c = c.children[0]; len += Store.lineLength(c.line); k++; }
         if (k > 1) c.line = { id: 'v' + c.id, level: first.level, conductor: first.conductor, feeder: first.feeder, lengthM: len, spans: k, gap: first.gap };
         c.parent = n.id;
         return c;
@@ -187,6 +213,7 @@ const SLD = {
       [S('GI'), 'Gardu Induk', S('GH'), 'Gardu Hubung'],
       [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#111" stroke-width="2"/>`, 'JTM 20 kV', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#111" stroke-width="2" stroke-dasharray="8 3 2 3"/>`, 'Kabel tanah 20 kV'],
       [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#78716c" stroke-width="2" stroke-dasharray="5 4"/>`, 'JTR (tegangan rendah)', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/>`, 'Tie / manuver antar penyulang'],
+      [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 5"/>`, 'Jalur belum tertaging (jarak garis lurus)', '', ''],
       [S('REC'), 'Recloser 20 kV (NC)', O('REC'), 'Recloser 20 kV (NO)'],
       [S('LBS', { sub: 'motor' }), 'LBS Motorised 20 kV (NC)', O('LBS', { sub: 'motor' }), 'LBS Motorised 20 kV (NO)'],
       [S('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NC)', O('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NO)'],
@@ -238,16 +265,16 @@ const SLD = {
       // garis dari parent
       if (n.parent) {
         const p = t.nodes.get(n.parent), px = X(p), py = Y(p), l = n.line;
-        const color = l.level === 'JTR' ? '#64748b' : '#1f2937';
-        const dash = l.level === 'JTR' ? ' stroke-dasharray="6 4"' : /XLPE|SKTM|N2X/i.test(l.conductor) ? ' stroke-dasharray="10 4 2 4"' : '';
+        const color = l.gap ? '#dc2626' : l.level === 'JTR' ? '#64748b' : '#1f2937';
+        const dash = l.gap ? ' stroke-dasharray="5 5"' : l.level === 'JTR' ? ' stroke-dasharray="6 4"' : /XLPE|SKTM|N2X/i.test(l.conductor) ? ' stroke-dasharray="10 4 2 4"' : '';
         let sx;
         if (n.row === p.row) { sx = px; edges.push(`<line x1="${px}" y1="${y}" x2="${x}" y2="${y}" stroke="${color}" stroke-width="2"${dash}/>`); }
         else { sx = px + gapX / 2; edges.push(`<path d="M${px} ${py}H${sx}V${y}H${x}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`); }
         if (opt.showLen) {
           const mx = (sx + x) / 2;
           const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
-          const condTxt = [opt.showCond ? l.conductor : '', l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
-          labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len">${fmt.m(Store.lineLength(l))}</text>
+          const condTxt = l.gap ? 'belum tertaging' : [opt.showCond ? l.conductor : '', l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
+          labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len" ${l.gap ? 'fill="#dc2626"' : ''}>${l.gap ? '≈ ' : ''}${fmt.m(Store.lineLength(l))}</text>
             ${condTxt ? `<text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(condTxt)}</text>` : ''}`);
         }
       }

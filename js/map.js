@@ -100,9 +100,13 @@ const MapView = {
     if (!this.map) return;
     this.assetLayer.clearLayers(); this.lineLayer.clearLayers();
     this.markers.clear(); this.polylines.clear();
+    const FF = this.feederFilter;
+    const showA = new Set();
     for (const l of Store.data.lines) {
+      if (FF && l.feeder !== FF) continue;
       const pts = Store.linePoints(l);
       if (!pts) continue;
+      if (FF) { showA.add(l.from); showA.add(l.to); }
       const pl = L.polyline(pts, this.lineStyle(l)).addTo(this.lineLayer);
       pl.options.bubblingMouseEvents = false;
       pl.bindTooltip(() => `${esc(Store.asset(l.from)?.code)} → ${esc(Store.asset(l.to)?.code)}<br>${fmt.m(Store.lineLength(l))} · ${esc(l.conductor)}${l.feeder ? ' · ' + esc(l.feeder) : ''}`, { sticky: true });
@@ -114,6 +118,7 @@ const MapView = {
     }
     for (const a of Store.data.assets) {
       if (a.lat == null || a.lng == null) continue;
+      if (FF && !(showA.has(a.id) || a.feeder === FF || ASSET_TYPES[a.type]?.source || a.type === 'GI')) continue;
       if (a.type === 'TIANG') {
         const cm = L.circleMarker([a.lat, a.lng], { ...this.poleStyle(a), bubblingMouseEvents: false });
         cm.bindTooltip(() => `<b>${esc(a.code)}</b>${a.sub === 'TR' ? ' (tiang TR)' : ''}${a.note ? '<br>' + esc(a.note) : ''}`, { direction: 'top' });
@@ -148,12 +153,19 @@ const MapView = {
     const names = Object.keys(lens).sort();
     if (!names.length) { this.legendEl.style.display = 'none'; return; }
     this.legendEl.style.display = '';
-    this.legendEl.innerHTML = `<b>Penyulang (klik untuk zoom)</b>` + names.map(f =>
-      `<div class="fl" data-f="${esc(f)}"><i style="--c:${feederColor(f)}"></i>${esc(f)} <small>${fmt.m(lens[f])}</small></div>`).join('');
+    const FF = this.feederFilter;
+    this.legendEl.innerHTML = `<b>Penyulang (klik: tampilkan satu / semua)</b>` + names.map(f =>
+      `<div class="fl ${FF && FF !== f ? 'dim' : ''} ${FF === f ? 'on' : ''}" data-f="${esc(f)}"><i style="--c:${feederColor(f)}"></i>${esc(f)} <small>${fmt.m(lens[f])}</small></div>`).join('') +
+      (FF ? `<div class="fl all">↩ tampilkan semua</div>` : '');
     this.legendEl.querySelectorAll('.fl').forEach(el => el.onclick = () => {
-      const pts = [];
-      Store.data.lines.forEach(l => { if (l.feeder === el.dataset.f) { const p = Store.linePoints(l); if (p) pts.push(p[0], p[p.length - 1]); } });
-      if (pts.length) this.map.fitBounds(pts, { padding: [30, 30] });
+      const f = el.dataset.f;
+      this.feederFilter = (!f || this.feederFilter === f) ? null : f;   // klik lagi = kembali semua
+      this.render();
+      if (this.feederFilter) {
+        const pts = [];
+        Store.data.lines.forEach(l => { if (l.feeder === this.feederFilter) { const p = Store.linePoints(l); if (p) pts.push(p[0], p[p.length - 1]); } });
+        if (pts.length) this.map.fitBounds(pts, { padding: [30, 30] });
+      }
     });
   },
   // pelanggan hanya digambar saat zoom dekat & di area tampak (bisa puluhan ribu titik)

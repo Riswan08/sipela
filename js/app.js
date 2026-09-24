@@ -4,7 +4,7 @@
  * ============================================================ */
 
 const SldView = {
-  rootId: null, opt: { stopOpen: true, showLen: true, showCond: true, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true, perFeeder: true },
+  rootId: null, opt: { stopOpen: true, showLen: true, showCond: true, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true, perFeeder: true, fillGaps: true },
   render() {
     const el = document.getElementById('view-sld');
     const src = [...AnalysisView.sources(), ...Store.data.assets.filter(a => a.type === 'GD').sort((a, b) => String(a.code).localeCompare(b.code))];
@@ -25,6 +25,7 @@ const SldView = {
         <label class="chk"><input type="checkbox" data-so="showJTR" ${this.opt.showJTR ? 'checked' : ''}> Tampilkan JTR</label>
         <label class="chk"><input type="checkbox" data-so="legend" ${this.opt.legend ? 'checked' : ''}> Keterangan & kop gambar</label>
         <label class="chk"><input type="checkbox" data-so="perFeeder" ${this.opt.perFeeder ? 'checked' : ''}> Satu keluaran per penyulang</label>
+        <label class="chk"><input type="checkbox" data-so="fillGaps" ${this.opt.fillGaps !== false ? 'checked' : ''}> Lengkapi sampai ujung (celah merah)</label>
         <span class="spacer"></span>
         <button class="btn" onclick="SLD.zoom(0.8)">＋</button><button class="btn" onclick="SLD.zoom(1.25)">－</button><button class="btn" onclick="SLD.fit()">Pas</button>
         <button class="btn" onclick="SLD.exportSvg()">⬇ SVG</button><button class="btn" onclick="SLD.exportPng()">⬇ PNG</button><button class="btn" onclick="SLD.print()">🖨 Cetak</button>
@@ -55,7 +56,8 @@ const SldView = {
     if (!svg) { wrap.innerHTML = '<p class="pad">Tidak dapat menggambar SLD.</p>'; return; }
     SLD.mount(wrap, svg);
     const reach = SLD.tree ? SLD.tree.nodes.size : 0, total = Store.data.assets.filter(a => a.sub !== 'TR').length;
-    if (SLD.tree?.missing) document.getElementById('sldInfo').innerHTML = `<span class="muted">${SLD.tree.missing} aset terhubung tetapi tidak tergambar karena tidak berada di jalur penyulangnya sendiri (label penyulang GIS berbeda). Matikan "Satu keluaran per penyulang" untuk melihat semuanya.</span>`;
+    if (SLD.tree?.gaps) document.getElementById('sldInfo').innerHTML = `<span class="muted">${SLD.tree.gaps} sambungan <span style="color:#dc2626">merah putus-putus</span> = kelompok jaringan yang belum tertaging di GIS, digantung ke titik terdekat penyulangnya (jarak garis lurus). Verifikasi & sambungkan di peta bila sudah pasti.</span>`;
+    else if (SLD.tree?.missing) document.getElementById('sldInfo').innerHTML = `<span class="muted">${SLD.tree.missing} aset terhubung tetapi tidak tergambar karena tidak berada di jalur penyulangnya sendiri (label penyulang GIS berbeda). Matikan "Satu keluaran per penyulang" untuk melihat semuanya.</span>`;
     const root = Store.asset(this.rootId);
     if (ASSET_TYPES[root?.type]?.source && total > 5 && reach < total * 0.5) {
       const hasOut = SLD.tree.root.children.length > 0;
