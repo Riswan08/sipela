@@ -1,4 +1,6 @@
-# SIPERSIS — Sistem Informasi Perencanaan Sistem Distribusi
+# SIPELA — Sistem Informasi Perencanaan Listrik Distribusi & Aset
+
+> *Pela* dalam budaya Maluku adalah ikatan persaudaraan antar negeri yang saling menolong. Semangat yang sama ada di jaringan distribusi: penyulang saling *back-up* lewat titik manuver (tie).
 
 Aplikasi web untuk **membangun sendiri data jaringan distribusi 20 kV** ketika data SLD dan jarak antar aset belum tersedia.
 Tidak butuh server atau database: semua data tersimpan otomatis di browser, dan bisa di-backup ke file.

@@ -1,9 +1,10 @@
 'use strict';
 /* ============================================================
- * SIPERSIS — Store: model data, penyimpanan lokal, undo, geo helper
+ * SIPELA — Store: model data, penyimpanan lokal, undo, geo helper
  * ============================================================ */
 
-const STORAGE_KEY = 'sipersis.v1';
+const STORAGE_KEY = 'sipela.v1';
+const LEGACY_KEYS = ['sipersis.v1'];
 
 // Jenis aset jaringan distribusi. sw = peralatan hubung (punya status NO/NC),
 // load = punya kapasitas kVA (dipakai di analisis beban & drop tegangan).
@@ -112,7 +113,8 @@ const Store = {
 
   load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      // data dari nama lama aplikasi tetap terbaca
+      const raw = localStorage.getItem(STORAGE_KEY) ?? LEGACY_KEYS.map(k => localStorage.getItem(k)).find(Boolean);
       if (raw) this.data = this.normalize(JSON.parse(raw));
     } catch (e) { console.warn('Gagal memuat data', e); }
   },

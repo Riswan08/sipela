@@ -188,7 +188,7 @@ const IO = {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
       { dari_kode: 'GI-01', ke_kode: 'KB001', penyulang: 'MAWAR', level: 'JTM', penghantar: 'AAAC-150', panjang_m: 1250, panjang_peta_m: '', keterangan: 'panjang_m boleh kosong → dihitung dari koordinat', jalur: '' },
     ], { header: LINE_COLS }), 'Saluran');
-    XLSX.writeFile(wb, 'Template_Import_SIPERSIS.xlsx');
+    XLSX.writeFile(wb, 'Template_Import_SIPELA.xlsx');
   },
   async importExcel(file) {
     if (!window.XLSX) throw new Error('Library Excel belum termuat (butuh internet)');
@@ -302,7 +302,7 @@ const IO = {
   exportJson() { this.download(`${this.base()}_backup_${this.stamp()}.json`, JSON.stringify(Store.data, null, 1), 'application/json'); },
   async importJson(file) {
     const d = JSON.parse(await this.readFile(file));
-    if (!d || !Array.isArray(d.assets)) throw new Error('Bukan file backup SIPERSIS');
+    if (!d || !Array.isArray(d.assets)) throw new Error('Bukan file backup SIPELA');
     Store.replace(d);
     return [`Backup dipulihkan: ${d.assets.length} aset, ${(d.lines || []).length} saluran`];
   },
