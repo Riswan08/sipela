@@ -324,6 +324,16 @@ const DataView = {
           </table></div>
           <button class="btn" id="bCadd">+ Tambah penghantar</button>
 
+          <h3 class="mt">Kop gambar SLD</h3>
+          <div class="grid3">
+            <label class="f"><span>UIW</span><input data-ps="uiw" value="${esc(P.uiw)}"></label>
+            <label class="f"><span>UP3</span><input data-ps="up3" value="${esc(P.up3)}"></label>
+            <label class="f"><span>Nomor gambar</span><input data-ps="drawingNo" value="${esc(P.drawingNo)}"></label>
+            <label class="f"><span>Digambar</span><input data-ps="drawnBy" value="${esc(P.drawnBy)}"></label>
+            <label class="f"><span>Diperiksa</span><input data-ps="checkedBy" value="${esc(P.checkedBy)}"></label>
+            <label class="f"><span>Disetujui</span><input data-ps="approvedBy" value="${esc(P.approvedBy)}"></label>
+          </div>
+          <p class="hint">ULP dan nama sistem diambil dari data sistem aktif; tanggal otomatis saat gambar dibuat.</p>
           <h3 class="mt">Parameter</h3>
           <div class="grid3">
             <label class="f"><span>Tegangan (kV)</span><input data-p="kv" value="${P.kv}"></label>

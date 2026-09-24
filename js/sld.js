@@ -70,43 +70,94 @@ const SLD = {
     t.order = order;
   },
 
+  // Simbol mengikuti gaya SLD PLN (hitam = NC/close, putih = NO/open)
   symbol(a) {
     const T = ASSET_TYPES[a.type] || ASSET_TYPES.TIANG, c = T.color, open = Net.isOpen(a);
+    const K = '#111', fill = open ? '#fff' : K, txt = open ? K : '#fff';
+    const scada = a.scada ? `<rect x="-16" y="-34" width="32" height="11" fill="#fde047" stroke="#111" stroke-width=".8"/><text y="-25.5" text-anchor="middle" font-size="7" font-weight="700" fill="#111">SCADA</text>` : '';
     switch (a.type) {
-      case 'PLTD': return `<circle r="22" fill="#fff" stroke="${c}" stroke-width="2.5"/>
-        <path d="M-11 0c3.5-9 7.5-9 11 0s7.5 9 11 0" fill="none" stroke="${c}" stroke-width="2.5"/>
-        <text y="-26" text-anchor="middle" font-weight="700" font-size="11" fill="${c}">PLTD</text>`;
-      case 'GI': return `<rect x="-30" y="-22" width="60" height="44" rx="3" fill="#fff" stroke="${c}" stroke-width="2.5"/>
-        <line x1="30" y1="-16" x2="30" y2="16" stroke="${c}" stroke-width="6"/>
-        <text y="5" text-anchor="middle" font-weight="700" font-size="15" fill="${c}">GI</text>`;
-      case 'GH': return `<rect x="-20" y="-20" width="40" height="40" fill="#fff" stroke="${c}" stroke-width="2.5"/>
-        <line x1="-14" y1="-9" x2="14" y2="-9" stroke="${c}" stroke-width="4"/>
-        <text y="12" text-anchor="middle" font-weight="700" font-size="12" fill="${c}">GH</text>`;
-      case 'GD': return `<circle cx="-7" r="11" fill="#fff" stroke="${c}" stroke-width="2.2"/>
-        <circle cx="7" r="11" fill="#fff" fill-opacity=".6" stroke="${c}" stroke-width="2.2"/>`;
-      case 'PTM': return `<rect x="-13" y="-13" width="26" height="26" fill="#fff" stroke="${c}" stroke-width="2.2"/>
-        <text y="4" text-anchor="middle" font-size="9" font-weight="700" fill="${c}">kWh</text>`;
-      case 'REC': return `<rect x="-13" y="-13" width="26" height="26" fill="${open ? '#fff' : c}" stroke="${open ? '#dc2626' : c}" stroke-width="2.2"/>
-        <text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${open ? '#dc2626' : '#fff'}">R</text>`;
-      case 'LBS': return `<rect x="-16" y="-14" width="32" height="20" fill="#fff"/>
-        <line x1="-16" y1="0" x2="-8" y2="0" stroke="#1f2937" stroke-width="2"/><line x1="10" y1="0" x2="16" y2="0" stroke="#1f2937" stroke-width="2"/>
-        <circle cx="-8" r="2.5" fill="${c}"/><circle cx="10" r="2.5" fill="${c}"/>
-        <line x1="-8" y1="0" x2="${open ? 7 : 10}" y2="${open ? -12 : 0}" stroke="${open ? '#dc2626' : c}" stroke-width="3" stroke-linecap="round"/>`;
-      case 'FCO': return `<rect x="-12" y="-6" width="24" height="12" fill="#fff" stroke="${open ? '#dc2626' : c}" stroke-width="2"/>
-        ${open ? '' : `<line x1="-12" y1="0" x2="12" y2="0" stroke="${c}" stroke-width="1.5"/>`}`;
+      case 'PLTD': return `<circle r="16" fill="#fff" stroke="${K}" stroke-width="2"/>
+        <text y="6" text-anchor="middle" font-weight="700" font-size="16" fill="${K}">G</text>${scada}`;
+      case 'GI': return `<rect x="-26" y="-20" width="52" height="40" fill="#fff" stroke="${K}" stroke-width="2"/>
+        <line x1="-8" y1="-13" x2="-8" y2="13" stroke="${K}" stroke-width="3"/><line x1="-8" y1="0" x2="10" y2="0" stroke="${K}" stroke-width="2"/><rect x="8" y="-5" width="10" height="10" fill="${K}"/>
+        <text y="30" text-anchor="middle" font-size="8" font-weight="700" fill="${K}">GI</text>${scada}`;
+      case 'GH': return `<rect x="-20" y="-16" width="40" height="32" fill="#e5e7eb" stroke="${K}" stroke-width="2"/>
+        <text y="4" text-anchor="middle" font-weight="700" font-size="11" fill="${K}">GH</text>${scada}`;
+      case 'GD': {
+        if (a.mount === 'beton') return `<rect x="-12" y="-12" width="24" height="24" fill="#fff" stroke="${K}" stroke-width="1.8"/><path d="M-8 9L0-8 8 9Z" fill="${K}"/>${scada}`;
+        // gardu trafo tiang (portal/cantol): bentuk "spade"
+        const col = a.rusak ? '#dc2626' : a.aktif === false ? '#2563eb' : K;
+        return `<path d="M0-14C-9-6-12-1-12 3a12 12 0 0 0 24 0c0-4-3-9-12-17z" fill="${col}"/><rect x="-2" y="6" width="4" height="9" fill="${col}"/>${a.mount === 'cantol' ? '' : `<line x1="-9" y1="15" x2="9" y2="15" stroke="${col}" stroke-width="2"/>`}${scada}`;
+      }
+      case 'PTM': return `<rect x="-13" y="-13" width="26" height="26" fill="#fff" stroke="${K}" stroke-width="2"/>
+        <text y="4" text-anchor="middle" font-size="9" font-weight="700" fill="${K}">kWh</text>${scada}`;
+      case 'REC': return `<rect x="-13" y="-13" width="26" height="26" fill="${fill}" stroke="${K}" stroke-width="2"/>
+        <text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${txt}">R</text>${scada}`;
+      case 'LBS': {
+        if (a.sub === 'sect') return `<rect x="-13" y="-13" width="26" height="26" fill="${fill}" stroke="${K}" stroke-width="2"/><text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${txt}">S</text>${scada}`;
+        if (a.sub === 'motor') return `<circle r="13" fill="${fill}" stroke="${K}" stroke-width="2"/><text y="5" text-anchor="middle" font-size="13" font-weight="700" fill="${txt}">M</text>${scada}`;
+        // LBS manual: lingkaran dengan "dasi kupu-kupu"
+        return `<circle r="13" fill="#fff" stroke="${K}" stroke-width="2"/><path d="M-9-6L0 0-9 6Z" fill="${K}"/><path d="M9-6L0 0 9 6Z" fill="${K}"/>${open ? `<line x1="-4" y1="-9" x2="4" y2="9" stroke="#dc2626" stroke-width="2.5"/>` : ''}${scada}`;
+      }
+      case 'FCO': return `<rect x="-16" y="-8" width="32" height="16" fill="#fff" stroke="${K}" stroke-width="1.8"/>
+        <path d="M-12 0c4-8 8-8 12 0s8 8 12 0" fill="none" stroke="${open ? '#dc2626' : K}" stroke-width="1.6"/>${scada}`;
       default: return `<circle r="4.5" fill="#334155"/>`;
     }
   },
 
+  // panel "Keterangan" (legenda) + kop gambar, gaya SLD PLN
+  legendPanel(x, y, w, root, count) {
+    const P = Store.data.params, M = Store.data.meta;
+    const row = (sym, label, dy, sym2, label2) => `<g transform="translate(${x + 30},${dy})">${sym}<text x="26" y="4" class="lg">${label}</text>${sym2 ? `<g transform="translate(${w / 2 - 6},0)">${sym2}<text x="26" y="4" class="lg">${label2}</text></g>` : ''}</g>`;
+    const S = (t, extra = {}) => `<g transform="scale(.75)">${this.symbol({ type: t, status: 'NC', ...extra })}</g>`;
+    const O = (t, extra = {}) => `<g transform="scale(.75)">${this.symbol({ type: t, status: 'NO', ...extra })}</g>`;
+    const items = [
+      [S('PLTD'), 'Generator pembangkit'],
+      [`<g transform="scale(.75)"><circle cx="-6" r="8" fill="none" stroke="#111" stroke-width="2"/><circle cx="6" r="8" fill="none" stroke="#111" stroke-width="2"/></g>`, 'Transformator'],
+      [S('GI'), 'Gardu Induk', S('GH'), 'Gardu Hubung'],
+      [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#111" stroke-width="2"/>`, 'JTM 20 kV', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#111" stroke-width="2" stroke-dasharray="8 3 2 3"/>`, 'Kabel tanah 20 kV'],
+      [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#78716c" stroke-width="2" stroke-dasharray="5 4"/>`, 'JTR (tegangan rendah)', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/>`, 'Tie / manuver antar penyulang'],
+      [S('REC'), 'Recloser 20 kV (NC)', O('REC'), 'Recloser 20 kV (NO)'],
+      [S('LBS', { sub: 'motor' }), 'LBS Motorised 20 kV (NC)', O('LBS', { sub: 'motor' }), 'LBS Motorised 20 kV (NO)'],
+      [S('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NC)', O('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NO)'],
+      [S('LBS'), 'LBS Manual 20 kV', S('FCO'), 'Fuse Cut Out'],
+      [S('GD', { mount: 'beton' }), 'Gardu Beton', S('GD'), 'Gardu Trafo Tiang (2 tiang)'],
+      [S('GD', { aktif: false }), 'Gardu Tiang Belum Aktif', S('GD', { rusak: true }), 'Gardu Tiang Rusak'],
+      [S('GD', { mount: 'cantol' }), 'Gardu Cantol (1 tiang)', S('PTM'), 'Pelanggan TM (APP)'],
+      [`<rect x="-16" y="-6" width="32" height="12" fill="#fde047" stroke="#111" stroke-width=".8"/><text y="3" text-anchor="middle" font-size="7" font-weight="700">SCADA</text>`, 'Key Point SCADA', `<circle r="4.5" fill="#334155"/>`, 'Tiang / titik percabangan'],
+    ];
+    let dy = y + 42;
+    const rows = items.map(it => { const r = row(it[0], it[1], dy, it[2], it[3]); dy += 30; return r; });
+    const legendH = dy - y + 4;
+    // kop gambar
+    const ky = y + legendH + 10, lh = 24;
+    const sistem = M.sistem || M.name.replace(/^Sistem\s+/i, '');
+    const fields = [['UIW', P.uiw], ['UP3', P.up3], ['ULP', M.ulp || '-'], ['Sistem', sistem], ['Penyulang / sumber', `${root.feeder || ''} ${root.code}`.trim()],
+      ['Nomor Gambar', P.drawingNo || ''], ['Tanggal', new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })]];
+    const kop = `<rect x="${x}" y="${ky}" width="${w}" height="${72 + fields.length * lh + 70}" fill="#fff" stroke="#111" stroke-width="1.5"/>
+      <text x="${x + w / 2}" y="${ky + 30}" text-anchor="middle" class="kt">SINGLE LINE DIAGRAM</text>
+      <text x="${x + w / 2}" y="${ky + 56}" text-anchor="middle" class="kt">${esc((sistem ? 'SISTEM ' + sistem : M.name).toUpperCase())}</text>
+      <line x1="${x}" y1="${ky + 68}" x2="${x + w}" y2="${ky + 68}" stroke="#111"/>
+      ${fields.map((f, i) => `<line x1="${x}" y1="${ky + 68 + (i + 1) * lh}" x2="${x + w}" y2="${ky + 68 + (i + 1) * lh}" stroke="#111" stroke-width=".8"/>
+        <text x="${x + 8}" y="${ky + 68 + i * lh + 16}" class="kf">${esc(f[0])}</text><text x="${x + 128}" y="${ky + 68 + i * lh + 16}" class="kf">: ${esc(String(f[1] ?? ''))}</text>`).join('')}
+      ${['Digambar', 'Diperiksa', 'Disetujui'].map((h, i) => { const cx = x + i * w / 3, val = [P.drawnBy, P.checkedBy, P.approvedBy][i] || ''; const ty = ky + 68 + fields.length * lh;
+        return `<line x1="${cx}" y1="${ty}" x2="${cx}" y2="${ty + 70}" stroke="#111" stroke-width=".8"/><text x="${cx + w / 6}" y="${ty + 16}" text-anchor="middle" class="kf" font-weight="700">${h}</text>
+          <line x1="${cx}" y1="${ty + 22}" x2="${cx + w / 3}" y2="${ty + 22}" stroke="#111" stroke-width=".8"/><text x="${cx + w / 6}" y="${ty + 60}" text-anchor="middle" class="kf">${esc(val)}</text>`; }).join('')}
+      <text x="${x + w}" y="${ky + 72 + fields.length * lh + 70 + 14}" text-anchor="end" class="sub">${count} aset · digambar otomatis SIPELA — verifikasi lapangan diperlukan</text>`;
+    return { svg: `<rect x="${x}" y="${y}" width="${w}" height="${legendH}" fill="#f1f5f9" stroke="#111" stroke-width="1"/>
+      <text x="${x + 14}" y="${y + 24}" class="kt" font-size="14">Keterangan :</text>${rows.join('')}${kop}`, h: legendH + 10 + 72 + fields.length * lh + 70 + 24 };
+  },
+
   render(rootId, opt = {}) {
-    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, collapse: true, showJTR: false, ...opt };
+    opt = { stopOpen: true, showLen: true, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, ...opt };
     const t = this.build(rootId, opt);
     if (!t) return null;
     const { gapX, gapY, pad } = this;
     const X = n => pad + n.col * gapX, Y = n => pad + 40 + n.row * gapY;
     let maxCol = 0, maxRow = 0;
     t.order.forEach(n => { maxCol = Math.max(maxCol, n.col); maxRow = Math.max(maxRow, n.row); });
-    const W = pad * 2 + maxCol * gapX + 120, H = pad * 2 + 40 + maxRow * gapY + 40;
+    const PW = opt.legend ? 430 : 0;  // lebar panel keterangan + kop di kanan
+    const W = pad * 2 + maxCol * gapX + 120 + PW, H = pad * 2 + 40 + maxRow * gapY + 40;
     const edges = [], labels = [], nodes = [], ties = [];
 
     for (const n of t.order) {
@@ -149,7 +200,12 @@ const SLD = {
     const root = t.root.asset;
     const title = `<g class="titleblk"><text x="${pad - 50}" y="36" class="ttl">SINGLE LINE DIAGRAM — ${esc(root.code)} ${esc(root.name || '')}</text>
       <text x="${pad - 50}" y="54" class="sub">${esc(Store.data.meta.name)} · ${t.order.length} aset · digambar otomatis ${new Date().toLocaleDateString('id-ID')} · verifikasi lapangan diperlukan</text></g>`;
-    this.size = [W, Math.max(H, 200)];
+    let panel = '', Hfinal = Math.max(H, 200);
+    if (opt.legend) {
+      const lp = this.legendPanel(W - PW + 10, 20, PW - 30, root, t.order.length);
+      panel = lp.svg; Hfinal = Math.max(Hfinal, lp.h + 40);
+    }
+    this.size = [W, Hfinal];
     this.rootId = rootId;
     this.tree = t;
     return `<svg xmlns="http://www.w3.org/2000/svg" id="sldSvg" viewBox="0 0 ${W} ${this.size[1]}" width="${W}" height="${this.size[1]}" font-family="Arial, Helvetica, sans-serif">
@@ -157,8 +213,9 @@ const SLD = {
         .len{font-size:11px;font-weight:700;fill:#111827}.cond{font-size:10px;fill:#6b7280}.fdr{font-size:12px;font-weight:700}
         .lbl{font-size:11px;fill:#374151}.lbl .code{font-weight:700;fill:#111827}.tie-t{font-size:10px;fill:#dc2626}
         .ttl{font-size:16px;font-weight:700;fill:#111827}.sub{font-size:11px;fill:#6b7280}.node{cursor:pointer}
+        .lg{font-size:11px;fill:#111}.kt{font-size:20px;font-weight:700;fill:#111}.kf{font-size:12px;fill:#111}
       </style>
-      <rect width="100%" height="100%" fill="#fff"/>${title}${edges.join('')}${labels.join('')}${ties.map(s => s.svg).join('')}${nodes.join('')}
+      <rect width="100%" height="100%" fill="#fff"/>${title}${edges.join('')}${labels.join('')}${ties.map(s => s.svg).join('')}${nodes.join('')}${panel}
     </svg>`;
   },
 

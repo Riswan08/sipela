@@ -53,6 +53,10 @@ Jenis penghantar JTM diambil dari sheet JTM (kolom `UKURAN_PENGHANTAR_TM`, berup
 
 Pengaman rekonstruksi: tiang dengan kolom PENYULANG kosong mengikuti penyulang tiang terdekat (≤ 300 m); ruas JTM/JTR dan sambungan gardu yang lebih jauh dari batas (default 1.500 m) tidak dibuat, sehingga jaringan boleh terpecah beberapa kelompok daripada tersambung palsu puluhan km.
 
+## Keterangan & kop gambar SLD
+
+SLD memakai simbol gaya PLN (R hitam/putih = recloser NC/NO, M = LBS motorised, S = sectionalizer, kupu-kupu = LBS manual, FCO, gardu beton/tiang/cantol, gardu belum aktif/rusak, label kuning Key Point SCADA). Di kanan gambar ada panel **Keterangan** dan **kop** (UIW, UP3, ULP, Sistem, Penyulang/sumber, Nomor Gambar, Tanggal, Digambar/Diperiksa/Disetujui). Isi UIW/UP3/nomor gambar/nama penanda tangan di **Data → Kop gambar SLD**; ULP dan nama sistem diambil dari sistem aktif. Jenis saklar, jenis gardu, kondisi, dan tanda SCADA diisi di panel aset pada peta.
+
 ## Banyak sistem dalam satu aplikasi
 
 Setiap sistem kelistrikan (misalnya Buano, Kairatu, Masohi) disimpan terpisah. Pindah sistem lewat menu di kiri atas; buat, buka, atau hapus sistem di tab **Data → Sistem**. Saat import GIS, centang "Import ke sistem baru" agar tiap file masuk ke sistemnya sendiri. Data disimpan di IndexedDB browser (kapasitas ratusan MB), tetap unduh backup (.json) per sistem secara rutin.

@@ -418,8 +418,9 @@ const MapView = {
     el.innerHTML = s.kind === 'asset' ? this.assetForm(Store.asset(s.id)) : this.lineForm(Store.line(s.id));
     el.querySelectorAll('[data-k]').forEach(inp => inp.onchange = () => {
       const k = inp.dataset.k;
-      let v = inp.value;
+      let v = inp.type === 'checkbox' ? inp.checked : inp.value;
       if (inp.dataset.num !== undefined) v = num(v);
+      if (k === 'kondisi') { Store.mutate(() => { const o = Store.asset(s.id); o.rusak = v === 'rusak'; o.aktif = v === 'belum' ? false : true; }, 'edit'); return; }
       if (k === 'code' && v && Store.byCode(v) && Store.byCode(v).id !== s.id) { App.toast(`Kode ${v} sudah dipakai aset lain`); inp.value = Store.asset(s.id).code; return; }
       Store.mutate(() => { const o = s.kind === 'asset' ? Store.asset(s.id) : Store.line(s.id); o[k] = v; }, 'edit');
     });
@@ -497,6 +498,10 @@ const MapView = {
         ${a.custMaxM != null ? `<tr><td>Pelanggan terjauh</td><td class="${a.custMaxM > 500 ? 'warn' : ''}">${fmt.m(a.custMaxM)} (garis lurus)</td></tr>` : ''}
         ${a.jtrGisM != null ? `<tr><td>Panjang JTR (GIS)</td><td>${fmt.m(a.jtrGisM)}</td></tr>` : ''}
       </table>` : ''}
+      ${a.type === 'LBS' ? `<label class="f"><span>Jenis saklar</span><select data-k="sub"><option value="" ${!a.sub ? 'selected' : ''}>LBS manual</option><option value="motor" ${a.sub === 'motor' ? 'selected' : ''}>LBS motorised (M)</option><option value="sect" ${a.sub === 'sect' ? 'selected' : ''}>Sectionalizer (S)</option></select></label>` : ''}
+      ${a.type === 'GD' ? `<div class="grid2"><label class="f"><span>Jenis gardu</span><select data-k="mount"><option value="" ${!a.mount ? 'selected' : ''}>Trafo tiang / portal (2 tiang)</option><option value="cantol" ${a.mount === 'cantol' ? 'selected' : ''}>Cantol (1 tiang)</option><option value="beton" ${a.mount === 'beton' ? 'selected' : ''}>Gardu beton</option></select></label>
+        <label class="f"><span>Kondisi</span><select data-k="kondisi"><option value="" ${!a.rusak && a.aktif !== false ? 'selected' : ''}>Aktif</option><option value="belum" ${a.aktif === false ? 'selected' : ''}>Belum aktif</option><option value="rusak" ${a.rusak ? 'selected' : ''}>Rusak</option></select></label></div>` : ''}
+      ${a.type !== 'TIANG' ? `<label class="chk"><input type="checkbox" data-k="scada" ${a.scada ? 'checked' : ''}> Key Point SCADA</label>` : ''}
       ${T.sw ? `<label class="f"><span>Status operasi</span><select data-k="status"><option value="NC" ${a.status !== 'NO' ? 'selected' : ''}>NC — Normally Close (masuk)</option><option value="NO" ${a.status === 'NO' ? 'selected' : ''}>NO — Normally Open (titik buka)</option></select></label>` : ''}
       <label class="f"><span>Keterangan</span><textarea data-k="note" rows="2">${esc(a.note)}</textarea></label>
       <div class="btnrow">

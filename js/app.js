@@ -4,7 +4,7 @@
  * ============================================================ */
 
 const SldView = {
-  rootId: null, opt: { stopOpen: true, showLen: true, showName: true, hidePoles: true, collapse: true, showJTR: false },
+  rootId: null, opt: { stopOpen: true, showLen: true, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true },
   render() {
     const el = document.getElementById('view-sld');
     const src = [...AnalysisView.sources(), ...Store.data.assets.filter(a => a.type === 'GD').sort((a, b) => String(a.code).localeCompare(b.code))];
@@ -22,6 +22,7 @@ const SldView = {
         <label class="chk"><input type="checkbox" data-so="collapse" ${this.opt.collapse ? 'checked' : ''}> Ringkas tiang lurus</label>
         <label class="chk"><input type="checkbox" data-so="hidePoles" ${this.opt.hidePoles ? 'checked' : ''}> Sembunyikan label tiang</label>
         <label class="chk"><input type="checkbox" data-so="showJTR" ${this.opt.showJTR ? 'checked' : ''}> Tampilkan JTR</label>
+        <label class="chk"><input type="checkbox" data-so="legend" ${this.opt.legend ? 'checked' : ''}> Keterangan & kop gambar</label>
         <span class="spacer"></span>
         <button class="btn" onclick="SLD.zoom(0.8)">＋</button><button class="btn" onclick="SLD.zoom(1.25)">－</button><button class="btn" onclick="SLD.fit()">Pas</button>
         <button class="btn" onclick="SLD.exportSvg()">⬇ SVG</button><button class="btn" onclick="SLD.exportPng()">⬇ PNG</button><button class="btn" onclick="SLD.print()">🖨 Cetak</button>

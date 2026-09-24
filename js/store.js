@@ -39,6 +39,8 @@ const DEFAULT_PARAMS = {
   dropLimit: 5,    // batas drop tegangan yang ditandai (%)
   snapM: 25,       // toleransi snap ujung saluran ke aset saat import KML (m)
   csvSep: ';',     // pemisah CSV (Excel Indonesia memakai ;)
+  uiw: 'Maluku dan Maluku Utara', up3: 'Masohi',   // kop gambar SLD
+  drawnBy: '', checkedBy: '', approvedBy: '', drawingNo: '',
 };
 
 function emptyData() {
