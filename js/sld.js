@@ -85,9 +85,11 @@ const SLD = {
         <text y="4" text-anchor="middle" font-weight="700" font-size="11" fill="${K}">GH</text>${scada}`;
       case 'GD': {
         if (a.mount === 'beton') return `<rect x="-12" y="-12" width="24" height="24" fill="#fff" stroke="${K}" stroke-width="1.8"/><path d="M-8 9L0-8 8 9Z" fill="${K}"/>${scada}`;
-        // gardu trafo tiang (portal/cantol): bentuk "spade"
-        const col = a.rusak ? '#dc2626' : a.aktif === false ? '#2563eb' : K;
-        return `<path d="M0-14C-9-6-12-1-12 3a12 12 0 0 0 24 0c0-4-3-9-12-17z" fill="${col}"/><rect x="-2" y="6" width="4" height="9" fill="${col}"/>${a.mount === 'cantol' ? '' : `<line x1="-9" y1="15" x2="9" y2="15" stroke="${col}" stroke-width="2"/>`}${scada}`;
+        // gardu trafo tiang (gaya PLN): segitiga + lingkaran tiang setengah terisi (2 tiang = portal, 1 tiang = cantol)
+        const col = a.rusak ? '#dc2626' : a.aktif === false ? '#3b82f6' : K;
+        const pole = cx => `<circle cx="${cx}" cy="11" r="4" fill="#fff" stroke="${col}" stroke-width="1.2"/><path d="M${cx - 4} 11a4 4 0 0 0 4 4V11z M${cx} 7a4 4 0 0 1 4 4H${cx}z" fill="${col}"/>`;
+        const poles = a.mount === 'cantol' ? pole(0) : pole(-5) + pole(5);
+        return `<path d="M0-15L-10 4H10Z" fill="${col}"/>${poles}${scada}`;
       }
       case 'PTM': return `<rect x="-13" y="-13" width="26" height="26" fill="#fff" stroke="${K}" stroke-width="2"/>
         <text y="4" text-anchor="middle" font-size="9" font-weight="700" fill="${K}">kWh</text>${scada}`;
@@ -122,8 +124,8 @@ const SLD = {
       [S('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NC)', O('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NO)'],
       [S('LBS'), 'LBS Manual 20 kV', S('FCO'), 'Fuse Cut Out'],
       [S('GD', { mount: 'beton' }), 'Gardu Beton', S('GD'), 'Gardu Trafo Tiang (2 tiang)'],
-      [S('GD', { aktif: false }), 'Gardu Tiang Belum Aktif', S('GD', { rusak: true }), 'Gardu Tiang Rusak'],
-      [S('GD', { mount: 'cantol' }), 'Gardu Cantol (1 tiang)', S('PTM'), 'Pelanggan TM (APP)'],
+      [S('GD', { aktif: false }), 'Gardu Trafo Tiang Belum Aktif', S('GD', { mount: 'cantol' }), 'Gardu Trafo Tiang (1 tiang)'],
+      [S('GD', { rusak: true }), 'Gardu Trafo Tiang Rusak', S('PTM'), 'Pelanggan TM (APP)'],
       [`<rect x="-16" y="-6" width="32" height="12" fill="#fde047" stroke="#111" stroke-width=".8"/><text y="3" text-anchor="middle" font-size="7" font-weight="700">SCADA</text>`, 'Key Point SCADA', `<circle r="4.5" fill="#334155"/>`, 'Tiang / titik percabangan'],
     ];
     let dy = y + 42;
