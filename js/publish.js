@@ -41,6 +41,17 @@ const Publish = {
     if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status));
     return j;
   },
+  // periksa token: apakah repo terlihat & boleh ditulis
+  async testToken() {
+    const r = await fetch(`https://api.github.com/repos/${this.REPO}`, { headers: { Authorization: 'Bearer ' + this.token(), Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error('Token tidak valid / kedaluwarsa (401)');
+    if (r.status === 404) throw new Error('Repo sipela tidak terlihat oleh token (404) — di token, "Repository access" harus memilih repo sipela');
+    if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status));
+    const push = !!(j.permissions && j.permissions.push);
+    if (!push) throw new Error('Token hanya bisa membaca. Di token → Permissions → Repository permissions → Contents harus "Read and write" (lalu simpan / regenerate)');
+    return `Token OK: repo ${j.full_name} terlihat, izin tulis ✓`;
+  },
   async putFile(path, content, message) {
     const cur = await this.api(path + `?ref=${this.BRANCH}`);
     const body = { message, content: this.b64(content), branch: this.BRANCH };
@@ -96,6 +107,7 @@ const Publish = {
         <input type="password" id="ghToken" value="${esc(this.token())}" placeholder="github_pat_…" autocomplete="off"></label>
       <p class="hint">Cara membuat token: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained → Generate: Repository access = <b>Only select repositories: sipela</b>, Permissions → Contents = <b>Read and write</b>. Token disimpan hanya di browser ini.</p>
       <div class="btnrow">
+        <button class="btn" id="pubTest">🔑 Uji token</button>
         <button class="btn primary" id="pubRun">⬆ Publikasikan semua sistem</button>
         <button class="btn" id="pubPull">⬇ Ambil data publikasi ke perangkat ini</button>
       </div>
@@ -107,13 +119,19 @@ const Publish = {
     tok.onchange = () => this.setToken(tok.value.trim());
     const log = el.querySelector('#pubLog'), lines = [];
     const say = m => { lines.push(m); log.innerHTML = `<div class="okbox"><ul>${lines.slice(-8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`; };
+    el.querySelector('#pubTest').onclick = async () => {
+      this.setToken(tok.value.trim());
+      lines.length = 0;
+      try { say(await this.testToken()); } catch (e) { say('Gagal: ' + e.message); }
+    };
     el.querySelector('#pubRun').onclick = async () => {
       this.setToken(tok.value.trim());
+      try { await this.testToken(); } catch (e) { lines.length = 0; say('Gagal: ' + e.message); return; }
       const n = Store.systems.length;
       if (!confirm(`Publikasikan ${n} sistem ke GitHub Pages? Data yang sudah dipublikasikan sebelumnya akan diganti.`)) return;
       lines.length = 0; el.querySelector('#pubRun').disabled = true;
       try { await this.publishAll(say); this.showInfo(el); }
-      catch (e) { say('Gagal: ' + e.message + (/401|403|Bad credentials|Resource not accessible/i.test(e.message) ? ' — periksa token & izin Contents: write untuk repo sipela' : '')); }
+      catch (e) { say('Gagal: ' + e.message + (/Resource not accessible/i.test(e.message) ? ' — izin Contents pada token masih Read-only; ubah ke "Read and write" di pengaturan token, lalu coba lagi' : '')); }
       el.querySelector('#pubRun').disabled = false;
     };
     el.querySelector('#pubPull').onclick = async () => {
