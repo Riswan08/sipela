@@ -86,7 +86,20 @@ const Publish = {
       const { main, cust } = this.compact(d);
       const txt = JSON.stringify(main), ctxt = JSON.stringify(cust);
       log(`(${i}/${Store.systems.length}) ${s.name}: ${((txt.length + ctxt.length) / 1024 / 1024).toFixed(1)} MB …`);
-      const tryPut = async (path, content, msg) => { for (let k = 0; k < 3; k++) { try { return await this.putFile(path, content, msg); } catch (e) { if (k === 2 || !/HTTP (409|5\d\d)/.test(e.message)) throw new Error(`${s.name} (${path.split('/').pop()}): ${e.message}`); await new Promise(r => setTimeout(r, 1500)); } } };
+      // GitHub membatasi laju commit beruntun (secondary rate limit, HTTP 403/429): tunggu lalu ulangi
+      const tryPut = async (path, content, msg) => {
+        for (let k = 0; k < 6; k++) {
+          try { const r = await this.putFile(path, content, msg); await new Promise(r2 => setTimeout(r2, 1200)); return r; }
+          catch (e) {
+            const rate = /HTTP (403|429)/.test(e.message) && /rate|abuse|secondary|wait/i.test(e.message) || /HTTP 429/.test(e.message);
+            const transient = /HTTP (409|5\d\d)/.test(e.message);
+            if (k === 5 || !(rate || transient)) throw new Error(`${s.name} (${path.split('/').pop()}): ${e.message}`);
+            const wait = rate ? 60000 : 3000;
+            log(`  … ${rate ? 'GitHub minta jeda (batas laju)' : 'gangguan sementara'}, menunggu ${wait / 1000} s lalu mengulang`);
+            await new Promise(r2 => setTimeout(r2, wait));
+          }
+        }
+      };
       await tryPut(`${this.DIR}/sys-${s.id}.json`, txt, `Publikasi data ${s.name}`);
       if (cust.length) await tryPut(`${this.DIR}/sys-${s.id}-cust.json`, ctxt, `Publikasi pelanggan ${s.name}`);
       list.push({ id: s.id, name: s.name, ulp: s.ulp || '', sistem: s.sistem || '', updated: d.meta.updated, assets: d.assets.length, lines: d.lines.length, customers: (d.customers || []).length });
