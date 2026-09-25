@@ -22,7 +22,10 @@ const Publish = {
   async fetchSystem(id) {
     const r = await fetch(`${this.DIR}/sys-${id}.json?t=${Date.now()}`, { cache: 'no-store' });
     if (!r.ok) throw new Error('Data sistem tidak ditemukan di publikasi');
-    return await r.json();
+    const main = await r.json();
+    let cust = [];
+    if (main.nCustomers) { try { const c = await fetch(`${this.DIR}/sys-${id}-cust.json?t=${Date.now()}`, { cache: 'no-store' }); if (c.ok) cust = await c.json(); } catch {} }
+    return this.expand(main, cust);
   },
 
   /* ---------- sisi admin: push ke GitHub ---------- */
@@ -38,8 +41,21 @@ const Publish = {
     });
     if (r.status === 404 && (!opt.method || opt.method === 'GET')) return null;
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status));
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${j.message || r.statusText || 'gagal'}`);
     return j;
+  },
+  // data sistem diperkecil untuk publikasi: pelanggan dipisah, koordinat 6 desimal, kolom kosong dibuang
+  compact(d) {
+    const r6 = v => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
+    const clean = o => { const x = {}; for (const [k, v] of Object.entries(o)) { if (v === null || v === undefined || v === '' || v === false) continue; x[k] = (k === 'lat' || k === 'lng') ? r6(v) : v; } return x; };
+    const main = { ...d, assets: d.assets.map(clean), lines: d.lines.map(l => clean({ ...l, path: (l.path || []).map(p => [r6(p[0]), r6(p[1])]) })), customers: [], nCustomers: (d.customers || []).length };
+    const cust = (d.customers || []).map(c => [r6(c.lat), r6(c.lng), c.gd || '', c.idpel || '', c.va ?? null, c.feeder || '']);
+    return { main, cust };
+  },
+  expand(main, cust) {
+    const d = { ...main };
+    d.customers = (cust || []).map(c => ({ lat: c[0], lng: c[1], gd: c[2], idpel: c[3], va: c[4], feeder: c[5] }));
+    return d;
   },
   // periksa token: apakah repo terlihat & boleh ditulis
   async testToken() {
@@ -67,9 +83,12 @@ const Publish = {
     for (const s of Store.systems) {
       i++;
       const d = s.id === Store.current ? Store.data : Store.normalize(await DB.get('sys:' + s.id));
-      const txt = JSON.stringify(d);
-      log(`(${i}/${Store.systems.length}) ${s.name}: ${(txt.length / 1024 / 1024).toFixed(1)} MB …`);
-      await this.putFile(`${this.DIR}/sys-${s.id}.json`, txt, `Publikasi data ${s.name}`);
+      const { main, cust } = this.compact(d);
+      const txt = JSON.stringify(main), ctxt = JSON.stringify(cust);
+      log(`(${i}/${Store.systems.length}) ${s.name}: ${((txt.length + ctxt.length) / 1024 / 1024).toFixed(1)} MB …`);
+      const tryPut = async (path, content, msg) => { for (let k = 0; k < 3; k++) { try { return await this.putFile(path, content, msg); } catch (e) { if (k === 2 || !/HTTP (409|5\d\d)/.test(e.message)) throw new Error(`${s.name} (${path.split('/').pop()}): ${e.message}`); await new Promise(r => setTimeout(r, 1500)); } } };
+      await tryPut(`${this.DIR}/sys-${s.id}.json`, txt, `Publikasi data ${s.name}`);
+      if (cust.length) await tryPut(`${this.DIR}/sys-${s.id}-cust.json`, ctxt, `Publikasi pelanggan ${s.name}`);
       list.push({ id: s.id, name: s.name, ulp: s.ulp || '', sistem: s.sistem || '', updated: d.meta.updated, assets: d.assets.length, lines: d.lines.length, customers: (d.customers || []).length });
     }
     const index = { publishedAt: stamp, publishedBy: (typeof Auth !== 'undefined' && Auth.name()) || 'admin', current: Store.current, systems: list };
