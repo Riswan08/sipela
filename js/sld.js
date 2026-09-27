@@ -272,7 +272,8 @@ const SLD = {
         else { sx = px + gapX / 2; edges.push(`<path d="M${px} ${py}H${sx}V${y}H${x}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`); }
         if (opt.showLen) {
           const mx = (sx + x) / 2;
-          const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
+          // nama penyulang: rata kiri mulai sedikit setelah busbar/percabangan, di atas label SCADA/tie agar tidak menutup aset
+          const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${sx + 8}" y="${y - 46}" text-anchor="start" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
           const condTxt = l.gap ? 'belum tertaging' : [opt.showCond ? l.conductor : '', opt.showSpans && l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
           labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len" ${l.gap ? 'fill="#dc2626"' : ''}>${l.gap ? '≈ ' : ''}${fmt.m(Store.lineLength(l))}</text>
             ${condTxt ? `<text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(condTxt)}</text>` : ''}`);
