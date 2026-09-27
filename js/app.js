@@ -28,7 +28,7 @@ const SldView = {
         <label class="chk"><input type="checkbox" data-so="fillGaps" ${this.opt.fillGaps !== false ? 'checked' : ''}> Lengkapi sampai ujung (celah merah)</label>
         <span class="spacer"></span>
         <button class="btn" onclick="SLD.zoom(0.8)">＋</button><button class="btn" onclick="SLD.zoom(1.25)">－</button><button class="btn" onclick="SLD.fit()">Pas</button>
-        <button class="btn" onclick="SLD.exportSvg()">⬇ SVG</button><button class="btn" onclick="SLD.exportPng()">⬇ PNG</button><button class="btn" onclick="SLD.print()">🖨 Cetak</button>
+        <button class="btn" onclick="SLD.exportSvg()">⬇ SVG</button><button class="btn" onclick="SLD.exportPng()">⬇ PNG</button><button class="btn" onclick="SLD.exportPdf()" title="PDF vektor: tajam saat di-zoom">⬇ PDF</button><button class="btn" onclick="SLD.print()">🖨 Cetak</button>
       </div>
       <div class="toolbar wrap kop-edit">
         <span class="muted small">Kop:</span>

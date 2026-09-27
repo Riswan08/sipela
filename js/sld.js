@@ -414,6 +414,55 @@ const SLD = {
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   },
   fileBase() { return 'SLD_' + (Store.asset(this.rootId)?.code || 'jaringan').replace(/[^\w-]+/g, '_'); },
+
+  /* ---------- PDF vektor (jsPDF + svg2pdf) ---------- */
+  loadScript(src) {
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Gagal memuat ' + src)); document.head.appendChild(s); });
+  },
+  async ensurePdfLibs() {
+    if (!window.jspdf) await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    if (!window.svg2pdf) await this.loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js');
+  },
+  // gaya CSS kelas → atribut inline (pengubah PDF tidak membaca <style>), karakter non-Latin diganti
+  pdfClone() {
+    const clone = this.svg.cloneNode(true);
+    const [W, H] = this.size;
+    clone.setAttribute('viewBox', `0 0 ${W} ${H}`); clone.setAttribute('width', W); clone.setAttribute('height', H);
+    clone.querySelector('style')?.remove();
+    const S = {
+      len: { 'font-size': 11, 'font-weight': 700, fill: '#111827' }, cond: { 'font-size': 10, fill: '#6b7280' }, fdr: { 'font-size': 12, 'font-weight': 700 },
+      lbl: { 'font-size': 11, fill: '#374151' }, code: { 'font-weight': 700, fill: '#111827' }, 'tie-t': { 'font-size': 10, fill: '#dc2626' },
+      ttl: { 'font-size': 16, 'font-weight': 700, fill: '#111827' }, sub: { 'font-size': 11, fill: '#6b7280' },
+      lg: { 'font-size': 11, fill: '#111' }, kt: { 'font-size': 20, 'font-weight': 700, fill: '#111' }, kf: { 'font-size': 12, fill: '#111' },
+    };
+    clone.querySelectorAll('[class]').forEach(el => {
+      for (const c of String(el.getAttribute('class')).split(/\s+/)) {
+        const st = S[c]; if (!st) continue;
+        for (const [k, v] of Object.entries(st)) if (!el.hasAttribute(k)) el.setAttribute(k, v);
+      }
+    });
+    clone.querySelectorAll('text, tspan').forEach(t => {
+      t.childNodes.forEach(n => { if (n.nodeType === 3) n.nodeValue = n.nodeValue.replace(/⇄/g, '<->').replace(/≈/g, '~').replace(/→/g, '->').replace(/·/g, '-'); });
+    });
+    clone.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+    return clone;
+  },
+  async exportPdf() {
+    App.toast('Menyiapkan PDF vektor…');
+    try {
+      await this.ensurePdfLibs();
+      const [W, H] = this.size;
+      const s = Math.min(1, 14000 / Math.max(W, H));   // batas halaman jsPDF ±14.400 pt
+      const doc = new jspdf.jsPDF({ orientation: W >= H ? 'landscape' : 'portrait', unit: 'pt', format: [W * s, H * s], compress: true });
+      const clone = this.pdfClone();
+      document.body.appendChild(clone); clone.style.position = 'absolute'; clone.style.left = '-99999px';
+      await doc.svg(clone, { x: 0, y: 0, width: W * s, height: H * s });
+      clone.remove();
+      doc.setProperties({ title: this.fileBase(), subject: 'Single Line Diagram — SIPELA', creator: 'SIPELA' });
+      doc.save(this.fileBase() + '.pdf');
+      App.toast('PDF vektor tersimpan — tetap tajam saat di-zoom');
+    } catch (e) { console.error(e); App.toast('Gagal membuat PDF: ' + e.message + ' (butuh internet untuk memuat library)'); }
+  },
   exportSvg() { IO.download(this.fileBase() + '.svg', this.fullSvgText(), 'image/svg+xml'); },
   exportPng() {
     const [W, H] = this.size;
