@@ -80,7 +80,8 @@ const App = {
     badge.textContent = ro ? '👁 Tamu · hanya lihat' : '🛡 Admin · ' + Auth.name();
     if (ro) badge.title = 'Menampilkan data publikasi';
     badge.className = 'badge ' + (ro ? 'tamu' : 'admin');
-    document.getElementById('btnLogout').onclick = () => { if (confirm('Keluar dari SIPELA?')) Auth.logout(); };
+    const lo = document.getElementById('btnLogout');
+    lo.onclick = e => { e.preventDefault(); lo.disabled = true; lo.textContent = 'Keluar…'; setTimeout(() => Auth.logout(), 0); };
     await Store.load();
     const sel = document.getElementById('sysSel'), ulp = document.getElementById('ulpSel');
     sel.onchange = async () => {

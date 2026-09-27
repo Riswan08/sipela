@@ -97,38 +97,38 @@ const MapView = {
   },
   isSel(kind, id) { return this.sel && this.sel.kind === kind && this.sel.id === id; },
 
+  // Render bertahap (potongan ±700 objek per giliran) agar tombol/menu tetap responsif
+  // saat sistem besar (ribuan tiang & saluran) digambar. Render lama dibatalkan bila ada yang baru.
   render() {
     if (!this.map) return;
+    const token = this._renderToken = (this._renderToken || 0) + 1;
     this.assetLayer.clearLayers(); this.lineLayer.clearLayers();
     this.markers.clear(); this.polylines.clear();
     const FF = this.feederFilter;
     const showA = new Set();
-    for (const l of Store.data.lines) {
-      if (FF && l.feeder !== FF) continue;
+    const lines = Store.data.lines.filter(l => !FF || l.feeder === FF);
+    if (FF) lines.forEach(l => { showA.add(l.from); showA.add(l.to); });
+    const assets = Store.data.assets.filter(a => a.lat != null && a.lng != null && (!FF || showA.has(a.id) || a.feeder === FF || ASSET_TYPES[a.type]?.source || a.type === 'GI'));
+    const ro = typeof Auth !== 'undefined' && Auth.readOnly();
+    const addLine = l => {
       const pts = Store.linePoints(l);
-      if (!pts) continue;
-      if (FF) { showA.add(l.from); showA.add(l.to); }
+      if (!pts) return;
       const pl = L.polyline(pts, this.lineStyle(l)).addTo(this.lineLayer);
       pl.options.bubblingMouseEvents = false;
       pl.bindTooltip(() => `${esc(Store.asset(l.from)?.code)} → ${esc(Store.asset(l.to)?.code)}<br>${fmt.m(Store.lineLength(l))} · ${esc(l.conductor)}${l.feeder ? ' · ' + esc(l.feeder) : ''}`, { sticky: true });
-      pl.on('click', e => {
-        if (this.mode === 'select') this.select('line', l.id);
-        else this.onMapClick(e.latlng);
-      });
+      pl.on('click', e => { if (this.mode === 'select') this.select('line', l.id); else this.onMapClick(e.latlng); });
       this.polylines.set(l.id, pl);
-    }
-    for (const a of Store.data.assets) {
-      if (a.lat == null || a.lng == null) continue;
-      if (FF && !(showA.has(a.id) || a.feeder === FF || ASSET_TYPES[a.type]?.source || a.type === 'GI')) continue;
+    };
+    const addAsset = a => {
       if (a.type === 'TIANG') {
         const cm = L.circleMarker([a.lat, a.lng], { ...this.poleStyle(a), bubblingMouseEvents: false });
         cm.bindTooltip(() => `<b>${esc(a.code)}</b>${a.sub === 'TR' ? ' (tiang TR)' : ''}${a.note ? '<br>' + esc(a.note) : ''}`, { direction: 'top' });
         cm.on('click', () => this.onAssetClick(a.id));
         cm.addTo(this.assetLayer);
         this.markers.set(a.id, cm);
-        continue;
+        return;
       }
-      const mk = L.marker([a.lat, a.lng], { icon: this.iconFor(a), draggable: this.mode === 'select' && this.opts.allowDrag && !(typeof Auth !== "undefined" && Auth.readOnly()), zIndexOffset: a.type === 'TIANG' ? 0 : 500 });
+      const mk = L.marker([a.lat, a.lng], { icon: this.iconFor(a), draggable: this.mode === 'select' && this.opts.allowDrag && !ro, zIndexOffset: 500 });
       mk.bindTooltip(`<b>${esc(a.code)}</b> ${esc(a.name)}<br>${esc(ASSET_TYPES[a.type]?.label)}${a.kva ? ' · ' + fmt.n(a.kva, 0) + ' kVA' : ''}`, { direction: 'top', offset: [0, -10] });
       mk.on('click', () => this.onAssetClick(a.id));
       mk.on('dragend', e => {
@@ -137,9 +137,22 @@ const MapView = {
       });
       mk.addTo(this.assetLayer);
       this.markers.set(a.id, mk);
-    }
-    this.renderCustomers();
-    this.renderLegend();
+    };
+    // aset penting (gardu, peralatan, sumber) digambar lebih dulu, tiang menyusul
+    const jobs = [...lines.map(l => () => addLine(l)), ...assets.filter(a => a.type !== 'TIANG').map(a => () => addAsset(a)), ...assets.filter(a => a.type === 'TIANG').map(a => () => addAsset(a))];
+    const CH = 700;
+    let k = 0;
+    const step = () => {
+      if (token !== this._renderToken) return;   // render dibatalkan (ada render baru / keluar)
+      const end = Math.min(jobs.length, k + CH);
+      for (; k < end; k++) jobs[k]();
+      if (k < jobs.length) { setTimeout(step, 0); return; }
+      this.renderCustomers();
+      this.renderLegend();
+    };
+    // potongan pertama langsung, sisanya bergiliran dengan event UI
+    if (jobs.length <= CH) { jobs.forEach(f => f()); this.renderCustomers(); this.renderLegend(); }
+    else step();
     this.renderEditor();
   },
   poleStyle(a) {

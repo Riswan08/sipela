@@ -10,7 +10,12 @@ const Auth = {
   role() { return this.get()?.role || null; },
   name() { return this.get()?.name || ''; },
   readOnly() { return this.role() !== 'admin'; },
-  logout() { try { sessionStorage.removeItem(this.KEY); localStorage.removeItem(this.KEY); } catch {} location.href = 'login.html'; },
+  logout() {
+    // keluar harus instan: batalkan penulisan tertunda & render yang sedang berjalan, lalu ganti halaman
+    try { if (window.Store) { clearTimeout(Store._pt); Store._pending = null; } if (window.MapView) MapView._renderToken = (MapView._renderToken || 0) + 1; } catch {}
+    try { sessionStorage.removeItem(this.KEY); localStorage.removeItem(this.KEY); } catch {}
+    location.replace('login.html');
+  },
   require() {
     if (this.role()) return true;
     location.replace('login.html?next=' + encodeURIComponent(location.pathname.split('/').pop() || 'index.html') + (location.hash || ''));
