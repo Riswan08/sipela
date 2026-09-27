@@ -4,7 +4,7 @@
  * ============================================================ */
 
 const SldView = {
-  rootId: null, opt: { stopOpen: true, showLen: true, showCond: true, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true, perFeeder: true, fillGaps: true },
+  rootId: null, opt: { stopOpen: true, showLen: true, showCond: true, showSpans: false, showName: true, hidePoles: true, collapse: true, showJTR: false, legend: true, perFeeder: true, fillGaps: true },
   render() {
     const el = document.getElementById('view-sld');
     const src = [...AnalysisView.sources(), ...Store.data.assets.filter(a => a.type === 'GD').sort((a, b) => String(a.code).localeCompare(b.code))];
@@ -19,6 +19,7 @@ const SldView = {
         <label class="chk"><input type="checkbox" data-so="stopOpen" ${this.opt.stopOpen ? 'checked' : ''}> Berhenti di saklar NO</label>
         <label class="chk"><input type="checkbox" data-so="showLen" ${this.opt.showLen ? 'checked' : ''}> Panjang</label>
         <label class="chk"><input type="checkbox" data-so="showCond" ${this.opt.showCond ? 'checked' : ''}> Jenis penghantar</label>
+        <label class="chk"><input type="checkbox" data-so="showSpans" ${this.opt.showSpans ? 'checked' : ''}> Jumlah gawang</label>
         <label class="chk"><input type="checkbox" data-so="showName" ${this.opt.showName ? 'checked' : ''}> Nama</label>
         <label class="chk"><input type="checkbox" data-so="collapse" ${this.opt.collapse ? 'checked' : ''}> Ringkas tiang lurus</label>
         <label class="chk"><input type="checkbox" data-so="hidePoles" ${this.opt.hidePoles ? 'checked' : ''}> Sembunyikan label tiang</label>

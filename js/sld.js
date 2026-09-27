@@ -247,7 +247,7 @@ const SLD = {
   },
 
   render(rootId, opt = {}) {
-    opt = { stopOpen: true, showLen: true, showCond: true, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, perFeeder: true, ...opt };
+    opt = { stopOpen: true, showLen: true, showCond: true, showSpans: false, showName: true, hidePoles: false, collapse: true, showJTR: false, legend: true, perFeeder: true, ...opt };
     const t = this.build(rootId, opt);
     if (!t) return null;
     const { gapX, gapY, pad } = this;
@@ -273,7 +273,7 @@ const SLD = {
         if (opt.showLen) {
           const mx = (sx + x) / 2;
           const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${mx}" y="${y - 26}" text-anchor="middle" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
-          const condTxt = l.gap ? 'belum tertaging' : [opt.showCond ? l.conductor : '', l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
+          const condTxt = l.gap ? 'belum tertaging' : [opt.showCond ? l.conductor : '', opt.showSpans && l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
           labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len" ${l.gap ? 'fill="#dc2626"' : ''}>${l.gap ? '≈ ' : ''}${fmt.m(Store.lineLength(l))}</text>
             ${condTxt ? `<text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(condTxt)}</text>` : ''}`);
         }
