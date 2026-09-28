@@ -53,7 +53,7 @@ const MapView = {
     };
     document.addEventListener('keydown', e => {
       if (App.view !== 'map' || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-      if (e.key === 'Escape') { this.cancelDraft(); this.measurePts = []; this.renderDraft(); this.renderModeOpts(); }
+      if (e.key === 'Escape') { this.cancelDraft(); this.measurePts = []; this.area = null; this.renderDraft(); this.renderModeOpts(); }
       if (e.key === 'Enter' && this.mode === 'line') this.finishDraftAtNewPole();
       if (e.key === 'Delete' && this.sel) this.deleteSelected();
     });
@@ -277,12 +277,16 @@ const MapView = {
       this.draft.pts.push(p); this.renderDraft(); this.renderModeOpts(); return;
     }
     if (this.mode === 'measure') { this.measurePts.push(p); this.renderDraft(); this.renderModeOpts(); return; }
+    if (this.mode === 'area') {
+      if (!this.area || this.area.length === 2) this.area = [p]; else this.area.push(p);
+      this.renderDraft(); this.renderModeOpts(); return;
+    }
     if (this.sel) this.select(null, null);
   },
 
   onMove(ll) {
     this.mouse = [ll.lat, ll.lng];
-    if ((this.mode === 'line' && this.draft) || (this.mode === 'measure' && this.measurePts.length)) this.renderDraft();
+    if ((this.mode === 'line' && this.draft) || (this.mode === 'measure' && this.measurePts.length) || (this.mode === 'area' && this.area && this.area.length === 1)) this.renderDraft();
   },
 
   // penempatan peralatan dari daftar "belum bertikor"
@@ -354,6 +358,11 @@ const MapView = {
     } else if (this.mode === 'measure' && this.measurePts.length) {
       pts = [...this.measurePts];
       pts.forEach(p => L.circleMarker(p, { radius: 4, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(this.draftLayer));
+    } else if (this.mode === 'area' && this.area) {
+      const b = this.area.length === 2 ? this.area : (this.mouse ? [this.area[0], this.mouse] : null);
+      L.circleMarker(this.area[0], { radius: 5, color: '#7c3aed', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(this.draftLayer);
+      if (b) L.rectangle(b, { color: '#7c3aed', weight: 2, dashArray: '6 4', fillOpacity: 0.08, interactive: false }).addTo(this.draftLayer);
+      return;
     }
     if (!pts) return;
     const full = this.mouse ? [...pts, this.mouse] : pts;
@@ -390,6 +399,32 @@ const MapView = {
       if (!confirm('Hapus saluran ini?')) return;
       this.sel = null; Store.deleteLine(s.id);
     }
+  },
+
+  areaSelection() {
+    if (!this.area || this.area.length !== 2) return null;
+    const b = L.latLngBounds(this.area);
+    const assets = Store.data.assets.filter(a => a.lat != null && b.contains([a.lat, a.lng]) && !ASSET_TYPES[a.type]?.source && a.type !== 'GI');
+    const ids = new Set(assets.map(a => a.id));
+    const lines = Store.data.lines.filter(l => ids.has(l.from) && ids.has(l.to));
+    const byFeeder = {};
+    assets.forEach(a => { const f = a.feeder || '(tanpa)'; byFeeder[f] = (byFeeder[f] || 0) + 1; });
+    return { assets, lines, byFeeder };
+  },
+  applyArea(feeder) {
+    const sel = this.areaSelection();
+    if (!sel) return App.toast('Buat kotak dulu');
+    if (!feeder) return App.toast('Isi nama penyulang');
+    if (!confirm(`Tetapkan ${sel.assets.length} aset & ${sel.lines.length} saluran ke penyulang ${feeder}?`)) return;
+    Store.mutate(d => {
+      sel.assets.forEach(a => { a.feeder = feeder; });
+      sel.lines.forEach(l => { l.feeder = feeder; });
+      d.feederColors = d.feederColors || {};
+      if (!d.feederColors[feeder]) { const used = new Set(Object.values(d.feederColors)); d.feederColors[feeder] = FEEDER_COLORS.find(c => !used.has(c)) || feederColor(feeder); }
+    }, 'edit');
+    this.opts.feeder = feeder;
+    this.area = null; this.renderDraft(); this.renderModeOpts();
+    App.toast(`${sel.assets.length} aset & ${sel.lines.length} saluran → ${feeder}`);
   },
 
   /* ---------------- panel ---------------- */
@@ -441,6 +476,14 @@ const MapView = {
       h = `<p class="hint">${this.draft
           ? `Dari <b>${esc(Store.asset(this.draft.from)?.code)}</b> — klik peta untuk titik belok, klik aset tujuan untuk selesai. Panjang: <b id="draftLen">-</b><br><kbd>Enter</kbd> = akhiri dengan tiang baru, <kbd>Esc</kbd> = batal.`
           : 'Klik <b>aset awal</b>, lalu (opsional) klik titik belok di peta mengikuti jalur, lalu klik <b>aset tujuan</b>.'}</p>${common}`;
+    } else if (this.mode === 'area') {
+      const sel = this.areaSelection();
+      h = `<p class="hint">Klik <b>dua sudut</b> kotak di peta. Semua tiang, gardu, peralatan, dan saluran di dalam kotak akan ditetapkan ke penyulang pilihan (pembangkit/GI tidak diubah). <kbd>Esc</kbd> untuk ulang.</p>
+        ${sel ? `<div class="big">${sel.assets.length} aset · ${sel.lines.length} saluran <small>di dalam kotak</small></div>
+          <ul class="mini">${Object.entries(sel.byFeeder).sort().map(([f, n]) => `<li><span class="sw" style="background:${feederColor(f === '(tanpa)' ? '' : f)}"></span>${esc(f)}: ${n}</li>`).join('')}</ul>
+          <label class="f"><span>Tetapkan ke penyulang</span><input id="areaFeeder" list="dlFeedersRef" value="${esc(this.opts.feeder)}" placeholder="ketik nama penyulang (baru boleh)"></label>
+          <datalist id="dlFeedersRef">${[...new Set([...Store.feeders(), ...SistemRef.membersOf(Store.data.meta.sistem || '').flatMap(n => SISTEM_REF.find(s => s.sistem === n)?.penyulang || []).map(p => p.toUpperCase())])].map(f => `<option value="${esc(f)}">`).join('')}</datalist>
+          <div class="btnrow"><button class="btn primary" id="btnAreaApply">Tetapkan penyulang</button><button class="btn" id="btnAreaClear">Ulang</button></div>` : '<p class="muted small">Belum ada kotak.</p>'}`;
     } else if (this.mode === 'measure') {
       h = `<p class="hint">Klik titik-titik di peta/aset untuk mengukur jarak. <kbd>Esc</kbd> untuk ulang.</p>
         <div class="big">Jarak: <b id="draftLen">${fmt.m(Geo.pathLen(this.measurePts))}</b></div>`;
@@ -453,6 +496,8 @@ const MapView = {
     });
     el.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { this.opts.type = b.dataset.type; this.renderModeOpts(); });
     const g = el.querySelector('#btnGpsAdd'); if (g) g.onclick = () => this.locate(true);
+    const aa = el.querySelector('#btnAreaApply'); if (aa) aa.onclick = () => this.applyArea(el.querySelector('#areaFeeder').value.trim().toUpperCase());
+    const ac = el.querySelector('#btnAreaClear'); if (ac) ac.onclick = () => { this.area = null; this.renderDraft(); this.renderModeOpts(); };
     const det = el.querySelector('details.coord'); if (det) det.ontoggle = () => { this.coordOpen = det.open; };
     el.querySelectorAll('[data-place]').forEach(b => b.onclick = () => this.startPlacing(+b.dataset.place));
     el.querySelectorAll('[data-unpend]').forEach(b => b.onclick = () => { if (confirm('Hapus dari daftar belum bertikor?')) Store.mutate(d => { d.pending.splice(+b.dataset.unpend, 1); }, 'edit'); });
@@ -656,6 +701,12 @@ const MapView = {
       </table>
       <h4>Panjang JTM per penyulang</h4>
       <ul class="mini">${Object.entries(feeders).sort().map(([f, m]) => `<li><span class="sw" style="background:${feederColor(f === '(tanpa penyulang)' ? '' : f)}"></span>${esc(f)} — <b>${fmt.m(m)}</b></li>`).join('')}</ul>
+      ${(() => {
+        const refs = SistemRef.membersOf(d.meta.sistem || '').flatMap(n => SISTEM_REF.find(s => s.sistem === n)?.penyulang || []);
+        const have = Object.keys(feeders).map(f => SistemRef.norm(f.replace(/\/.*$/, '')));
+        const missing = refs.filter(p => !have.some(h => h === SistemRef.norm(p) || SistemRef.lev(h, SistemRef.norm(p)) <= 1 || Object.entries(FEEDER_ALIAS).some(([g, r]) => r === p && have.includes(SistemRef.norm(g.replace(/\/.*$/, ''))))));
+        return missing.length ? `<div class="warnbox small">Penyulang di daftar referensi yang <b>belum ada datanya</b>: ${missing.map(esc).join(', ')}. Tiangnya belum tertaging di GIS — gunakan mode <b>▭ Area</b> untuk menetapkan penyulang pada tiang di wilayahnya, atau import KML/survei.</div>` : '';
+      })()}
       <p class="hint">Tip: gunakan layer <b>Satelit</b> (kanan atas peta) untuk menelusuri jalur tiang dari citra.</p>`;
   },
 };

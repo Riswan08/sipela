@@ -85,6 +85,10 @@ SLD per penyulang **dilengkapi sampai ujung jaringan**: kelompok tiang/gardu pen
 
 Sistem yang jaringannya menyatu (mis. **Kobisonta + Pasahari**) diperlakukan sebagai satu sistem: daftar grup ada di `INTERKONEKSI` (`js/sistem.js`) sehingga import GIS langsung menggabungkannya; data yang sudah terpisah digabung lewat **Data → Gabungkan sistem**. Tiap pembangkit punya pilihan **penyulang yang keluar dari pembangkit ini** (panel pembangkit); "Susun keluaran" hanya membuat CB untuk penyulang itu. SLD dari salah satu pembangkit menggambar pembangkit lain beserta busbar dan penyulangnya, dihubungkan ruas ungu "interkoneksi" (jarak garis lurus bila jalurnya belum terdata di GIS).
 
+## Menetapkan penyulang secara massal (mode ▭ Area)
+
+Bila tiang di GIS belum tertaging penyulangnya (mis. Pasahari & Loping Mulyo di Kobisonta hanya tercatat sebagai SAMAL/TANAH MERAH), pakai mode **▭ Area** di peta: klik dua sudut kotak → semua tiang/gardu/peralatan/saluran di dalamnya ditetapkan ke penyulang yang dipilih (pembangkit/GI tidak diubah; bisa di-undo). Ringkasan peta memperingatkan penyulang referensi yang belum ada datanya.
+
 ## Keterangan & kop gambar SLD
 
 SLD memakai simbol gaya PLN (R hitam/putih = recloser NC/NO, M = LBS motorised, S = sectionalizer, kupu-kupu = LBS manual, FCO, gardu beton/tiang/cantol, gardu belum aktif/rusak, label kuning Key Point SCADA). Di kanan gambar ada panel **Keterangan** dan **kop** (UIW, UP3, ULP, Sistem, Penyulang/sumber, Nomor Gambar, Tanggal, Digambar/Diperiksa/Disetujui). Isi Nomor gambar / Diperiksa / Disetujui langsung di bilah kop pada tab SLD (atau **Data → Kop gambar SLD**); kolom *Digambar* berisi cap logo SIPELA. Panel keterangan & kop berskala mengikuti besar SLD agar tetap terbaca dalam satu lembar. Jenis penghantar bisa disembunyikan lewat centang; ULP dan nama sistem diambil dari sistem aktif. Jenis saklar, jenis gardu, kondisi, dan tanda SCADA diisi di panel aset pada peta.
