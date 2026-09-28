@@ -250,6 +250,28 @@ const Store = {
     await DB.set('current', id);
     this.emit('system');
   },
+  // gabungkan sistem lain ke sistem aktif (untuk sistem interkoneksi), lalu sistem sumber dihapus
+  async mergeFrom(id) {
+    if (typeof Auth !== 'undefined' && Auth.readOnly()) { App.toast('Mode pengunjung'); return null; }
+    const src = this.system(id); if (!src || id === this.current) return null;
+    await this.flush();
+    const o = this.normalize(await DB.get('sys:' + id));
+    const d = this.data;
+    this.snapshot(); this._idx = null;
+    const codes = new Set(d.assets.map(a => a.code));
+    o.assets.forEach(a => { if (codes.has(a.code)) a.code = a.code + ' (' + (o.meta.sistem || o.meta.name) + ')'; });
+    d.assets.push(...o.assets); d.lines.push(...o.lines); d.customers.push(...(o.customers || [])); d.pending.push(...(o.pending || []));
+    const used = new Set(Object.values(d.feederColors));
+    for (const [f, c] of Object.entries(o.feederColors || {})) if (!d.feederColors[f]) d.feederColors[f] = used.has(c) ? (FEEDER_COLORS.find(x => !used.has(x)) || c) : c;
+    o.conductors.forEach(c => { if (!d.conductors.some(x => x.code === c.code)) d.conductors.push(c); });
+    const a = d.meta.sistem || d.meta.name.replace(/^Sistem\s+/i, ''), b = o.meta.sistem || o.meta.name.replace(/^Sistem\s+/i, '');
+    d.meta.sistem = SistemRef.groupOf(a) === SistemRef.groupOf(b) ? SistemRef.groupOf(a) : `${a} – ${b}`;
+    d.meta.name = 'Sistem ' + d.meta.sistem;
+    this.persist(); await this.flush();
+    await this.deleteSystem(id);
+    this.emit('merge');
+    return { assets: o.assets.length, lines: o.lines.length };
+  },
   async deleteSystem(id) {
     if (typeof Auth !== "undefined" && Auth.readOnly()) { App.toast('Mode pengunjung: tidak bisa menghapus sistem'); return; }
     const i = this.systems.findIndex(x => x.id === id);

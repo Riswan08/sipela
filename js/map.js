@@ -487,6 +487,7 @@ const MapView = {
     });
     el.querySelectorAll('[data-sel]').forEach(b => b.onclick = () => { const [k, id] = b.dataset.sel.split(':'); this.select(k, id, true); });
     el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => this.action(b.dataset.act));
+    el.querySelectorAll('[data-pf]').forEach(c => c.onchange = () => Store.mutate(() => { const a = Store.asset(s.id); const set = new Set(a.feeders || []); c.checked ? set.add(c.dataset.pf) : set.delete(c.dataset.pf); a.feeders = [...set]; }, 'edit'));
   },
 
   action(act) {
@@ -553,6 +554,8 @@ const MapView = {
         <label class="f"><span>Daya mampu (kW)</span><input data-k="kw" data-num inputmode="decimal" value="${a.kw ?? ''}"></label>
         <label class="f"><span>Pemilik / operator</span><input data-k="owner" value="${esc(a.owner || 'PLN')}"></label>
       </div>
+      <div class="f"><span>Penyulang yang keluar dari pembangkit ini <small class="muted">(kosong = otomatis: yang belum dilayani pembangkit lain)</small></span>
+        <div class="chips">${Store.feeders().filter(f => Store.data.lines.some(l => l.feeder === f && l.level !== 'JTR')).map(f => `<label class="chip sel"><input type="checkbox" data-pf="${esc(f)}" ${(a.feeders || []).includes(f) ? 'checked' : ''}> <i style="background:${feederColor(f)}"></i>${esc(f)}</label>`).join('') || '<span class="muted small">belum ada penyulang</span>'}</div></div>
       <button class="btn primary block ro-hide" data-act="plant">⚙ Susun keluaran: trafo step-up ${a.gkv ?? Plant.KINDS[a.gen || 'PLTD'].gkv}/20 kV → busbar → CB tiap penyulang</button>` : ''}
       ${T.load ? `<div class="grid2">
         <label class="f"><span>Kapasitas (kVA)</span><input data-k="kva" data-num inputmode="decimal" value="${a.kva ?? ''}"></label>

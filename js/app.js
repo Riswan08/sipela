@@ -89,8 +89,9 @@ const App = {
       if (sel.value === '__new') { this.newSystem(); this.refreshCommon(); return; }
       if (sel.value.startsWith('__ref:')) {
         // sistem dari daftar referensi yang belum punya data: buat entri kosong
-        const ref = SISTEM_REF.find(s => s.sistem === sel.value.slice(6));
-        await Store.createSystem('Sistem ' + ref.sistem, null, { ulp: ref.ulp, sistem: ref.sistem });
+        const nm = sel.value.slice(6);
+        const ref = SISTEM_REF.find(s => s.sistem === nm) || SISTEM_REF.find(s => SistemRef.membersOf(nm).includes(s.sistem));
+        await Store.createSystem('Sistem ' + nm, null, { ulp: ref.ulp, sistem: nm });
         this.toast(`Sistem ${ref.sistem} dibuat (masih kosong) — import GIS atau tambah aset di peta`);
         return;
       }
@@ -146,7 +147,9 @@ const App = {
     if (cur && !list.some(s => s.id === cur.id)) opts.unshift(`<option value="${cur.id}" selected>${esc(cur.name)}</option>`);
     // sistem dari daftar referensi yang belum punya data
     const have = new Set(Store.systems.map(s => s.sistem).filter(Boolean));
-    const refs = SistemRef.systemsOf(this.ulpFilter).filter(r => !have.has(r.sistem));
+    const haveAll = new Set([...have].flatMap(n => SistemRef.membersOf(n)));
+    const seen = new Set();
+    const refs = SistemRef.systemsOf(this.ulpFilter).filter(r => !haveAll.has(r.sistem)).map(r => ({ ...r, sistem: SistemRef.groupOf(r.sistem) })).filter(r => !seen.has(r.sistem) && seen.add(r.sistem));
     const refOpts = refs.map(r => `<option value="__ref:${esc(r.sistem)}">${esc(r.sistem)}${!this.ulpFilter ? ` (${esc(r.ulp)})` : ''} — belum ada data</option>`);
     sel.innerHTML = opts.join('') + (Auth.readOnly() ? '' : (refOpts.length ? `<optgroup label="Belum diimport (${refOpts.length})">${refOpts.join('')}</optgroup>` : '') + '<option value="__new">＋ Sistem baru…</option>');
     sel.value = Store.current;

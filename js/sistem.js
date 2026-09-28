@@ -42,7 +42,14 @@ const FEEDER_ALIAS = {
   'KILMURI': '@Kilmury', 'KEFFING': '@Keffing', 'OPING': '@Oping / Olong', 'EKSPRESS': 'Express Laimu',
 };
 
+// sistem yang saling interkoneksi (jaringan menyatu, beberapa pembangkit) diperlakukan sebagai satu sistem
+const INTERKONEKSI = [
+  { name: 'Kobisonta – Pasahari', sistem: ['Kobisonta', 'Pasahari'] },
+];
+
 const SistemRef = {
+  groupOf(sistem) { const g = INTERKONEKSI.find(x => x.sistem.includes(sistem)); return g ? g.name : sistem; },
+  membersOf(name) { const g = INTERKONEKSI.find(x => x.name === name); return g ? g.sistem : [name]; },
   norm(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); },
   lev(a, b) {
     const m = a.length, n = b.length, D = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);

@@ -118,6 +118,33 @@ const SLD = {
         }
       }
     }
+    // pembangkit lain dalam sistem interkoneksi: digambar dengan busbar & penyulangnya sendiri,
+    // dihubungkan ke sumber utama lewat ruas "interkoneksi" (jarak garis lurus bila jalurnya belum terdata)
+    if (opt.perFeeder !== false) {
+      for (const S of Store.data.assets) {
+        if (!ASSET_TYPES[S.type]?.source || S.id === root.id || used.has(S.id)) continue;
+        const t2 = Net.tree(S.id, base);
+        const heads2 = new Map();
+        for (const n of t2.order) {
+          if (n === t2.root || used.has(n.id)) continue;
+          const f = n.asset.feeder; if (!f) continue;
+          const cur = heads2.get(f);
+          if (!cur || (n.asset.sub === 'cb' && cur.asset.sub !== 'cb') || (n.asset.sub === 'cb') === (cur.asset.sub === 'cb') && n.dist < cur.dist) heads2.set(f, n);
+        }
+        if (!heads2.size) continue;
+        const dS = Geo.dist([root.asset.lat, root.asset.lng], [S.lat, S.lng]);
+        const sNode = { id: S.id, asset: S, dist: dS, parent: root.id, line: { id: 'i' + S.id, level: 'JTM', conductor: '', feeder: '', lengthM: dS, inter: true, note: 'interkoneksi antar pembangkit' }, children: [] };
+        nodes.set(S.id, sNode); used.add(S.id);
+        for (const [f, h] of [...heads2.entries()].sort((a, b) => a[1].dist - b[1].dist)) {
+          if (used.has(h.id)) continue;
+          const blocked = new Set(used);
+          for (let q = t2.nodes.get(h.parent); q && q !== t2.root; q = t2.nodes.get(q.parent)) blocked.add(q.id);
+          const direct = h.parent === S.id;
+          const line = direct ? h.line : { id: 'f' + h.id, level: 'JTM', conductor: h.line.conductor, feeder: f, lengthM: h.dist, spans: 1 };
+          addSub(h.id, f, S.id, line, dS + h.dist, blocked);
+        }
+      }
+    }
     // susun anak (hanya simpul yang orang tuanya ikut terpakai)
     for (const n of nodes.values()) {
       if (n.id === root.id) continue;
@@ -213,7 +240,7 @@ const SLD = {
       [S('GI'), 'Gardu Induk', S('GH'), 'Gardu Hubung'],
       [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#111" stroke-width="2"/>`, 'JTM 20 kV', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#111" stroke-width="2" stroke-dasharray="8 3 2 3"/>`, 'Kabel tanah 20 kV'],
       [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#78716c" stroke-width="2" stroke-dasharray="5 4"/>`, 'JTR (tegangan rendah)', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/>`, 'Tie / manuver antar penyulang'],
-      [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 5"/>`, 'Jalur belum tertaging (jarak garis lurus)', '', ''],
+      [`<line x1="-14" y1="0" x2="14" y2="0" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 5"/>`, 'Jalur belum tertaging (jarak garis lurus)', `<line x1="-14" y1="0" x2="14" y2="0" stroke="#7c3aed" stroke-width="2" stroke-dasharray="2 6"/>`, 'Interkoneksi antar pembangkit'],
       [S('REC'), 'Recloser 20 kV (NC)', O('REC'), 'Recloser 20 kV (NO)'],
       [S('LBS', { sub: 'motor' }), 'LBS Motorised 20 kV (NC)', O('LBS', { sub: 'motor' }), 'LBS Motorised 20 kV (NO)'],
       [S('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NC)', O('LBS', { sub: 'sect' }), 'Sectionalizer 20 kV (NO)'],
@@ -265,8 +292,8 @@ const SLD = {
       // garis dari parent
       if (n.parent) {
         const p = t.nodes.get(n.parent), px = X(p), py = Y(p), l = n.line;
-        const color = l.gap ? '#dc2626' : l.level === 'JTR' ? '#64748b' : '#1f2937';
-        const dash = l.gap ? ' stroke-dasharray="5 5"' : l.level === 'JTR' ? ' stroke-dasharray="6 4"' : /XLPE|SKTM|N2X/i.test(l.conductor) ? ' stroke-dasharray="10 4 2 4"' : '';
+        const color = l.inter ? '#7c3aed' : l.gap ? '#dc2626' : l.level === 'JTR' ? '#64748b' : '#1f2937';
+        const dash = l.inter ? ' stroke-dasharray="2 6"' : l.gap ? ' stroke-dasharray="5 5"' : l.level === 'JTR' ? ' stroke-dasharray="6 4"' : /XLPE|SKTM|N2X/i.test(l.conductor) ? ' stroke-dasharray="10 4 2 4"' : '';
         let sx;
         if (n.row === p.row) { sx = px; edges.push(`<line x1="${px}" y1="${y}" x2="${x}" y2="${y}" stroke="${color}" stroke-width="2"${dash}/>`); }
         else { sx = px + gapX / 2; edges.push(`<path d="M${px} ${py}H${sx}V${y}H${x}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`); }
@@ -274,8 +301,8 @@ const SLD = {
           const mx = (sx + x) / 2;
           // nama penyulang: rata kiri mulai sedikit setelah busbar/percabangan, di atas label SCADA/tie agar tidak menutup aset
           const feederTag = ((!p.parent || p.asset.feeder !== l.feeder) && l.feeder) ? `<text x="${sx + 8}" y="${y - 46}" text-anchor="start" class="fdr" fill="${feederColor(l.feeder)}">${esc(l.feeder)}</text>` : '';
-          const condTxt = l.gap ? 'belum tertaging' : [opt.showCond ? l.conductor : '', opt.showSpans && l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
-          labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len" ${l.gap ? 'fill="#dc2626"' : ''}>${l.gap ? '≈ ' : ''}${fmt.m(Store.lineLength(l))}</text>
+          const condTxt = l.inter ? 'interkoneksi (jarak lurus)' : l.gap ? 'belum tertaging' : [opt.showCond ? l.conductor : '', opt.showSpans && l.spans ? `${l.spans} gawang` : ''].filter(Boolean).join(' · ');
+          labels.push(`${feederTag}<text x="${mx}" y="${y - 7}" text-anchor="middle" class="len" ${l.gap ? 'fill="#dc2626"' : l.inter ? 'fill="#7c3aed"' : ''}>${l.gap || l.inter ? '≈ ' : ''}${fmt.m(Store.lineLength(l))}</text>
             ${condTxt ? `<text x="${mx}" y="${y + 15}" text-anchor="middle" class="cond">${esc(condTxt)}</text>` : ''}`);
         }
       }
@@ -288,7 +315,7 @@ const SLD = {
         if (ASSET_TYPES[a.type]?.load && a.kva) lines.push(`<tspan x="0" dy="13">${fmt.n(a.kva, 0)} kVA${num(a.loadPct) != null ? ' · ' + fmt.n(a.loadPct, 0) + '%' : ''}</tspan>`);
         lbl = `<text y="${pole ? 18 : 34}" text-anchor="middle" class="lbl">${lines.join('')}</text>`;
       }
-      if (!n.parent && n.children.length > 1 && ASSET_TYPES[a.type]?.source) {
+      if (ASSET_TYPES[a.type]?.source && n.children.length >= 1 && (!n.parent || n.line?.inter) && (n.children.length > 1 || n.line?.inter)) {
         const ys = n.children.map(c => Y(c)); const bx = x + gapX / 2;
         const viaGI = n.children.every(c => /via GI/i.test(c.line.note || '')) ? Store.data.assets.find(z => z.type === 'GI') : null;
         edges.push(`<line x1="${bx}" y1="${Math.min(y, ...ys) - 16}" x2="${bx}" y2="${Math.max(y, ...ys) + 16}" stroke="#111" stroke-width="6"/><text x="${bx}" y="${Math.min(y, ...ys) - 22}" text-anchor="middle" class="len">Busbar 20 kV${viaGI ? ' ' + esc(viaGI.code) : ''}</text>`);

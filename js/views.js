@@ -273,6 +273,12 @@ const DataView = {
             ${s.id !== Store.current ? `<button class="btn sm" data-sys="${s.id}">Buka</button>` : '<span class="muted small">aktif</span>'}</li>`).join('')}</ul>
           <button class="btn" id="bSysNew">＋ Sistem baru</button>
           <p class="hint">Tiap sistem (mis. Buano, Kairatu, Masohi) disimpan terpisah. Pindah sistem lewat menu di kiri atas.</p>
+          <h4>Gabungkan sistem (interkoneksi)</h4>
+          <div class="toolbar wrap" style="padding:0">
+            <label class="f"><span>Gabungkan ke sistem aktif "${esc(d.meta.name)}"</span><select id="sysMergeSel">${Store.systems.filter(s => s.id !== Store.current).map(s => `<option value="${s.id}">${esc(s.name)} (${s.assets ?? 0} aset)</option>`).join('')}</select></label>
+            <button class="btn" id="bSysMerge">⇆ Gabungkan</button>
+          </div>
+          <p class="hint">Untuk sistem yang jaringannya menyatu dengan beberapa pembangkit (mis. Kobisonta + Pasahari): aset, saluran, pelanggan & penyulang digabung; sistem sumber dihapus. Nama sistem menjadi gabungan keduanya.</p>
           <h4>Hapus satu sistem</h4>
           <div class="toolbar wrap" style="padding:0">
             <label class="f"><span>Pilih sistem yang dihapus</span><select id="sysDelSel">${Store.systems.map(s => `<option value="${s.id}">${esc(s.name)} (${s.assets ?? 0} aset)</option>`).join('')}</select></label>
@@ -353,6 +359,12 @@ const DataView = {
     el.querySelector('#pName').onchange = e => Store.mutate(() => { Store.data.meta.name = e.target.value.trim() || 'Sistem'; }, 'meta');
     el.querySelector('#bSysNew').onclick = () => App.newSystem();
     el.querySelectorAll('[data-sys]').forEach(b => b.onclick = () => Store.switchTo(b.dataset.sys));
+    el.querySelector('#bSysMerge').onclick = async () => {
+      const s = Store.system(el.querySelector('#sysMergeSel').value); if (!s) return;
+      if (!confirm(`Gabungkan "${s.name}" ke "${Store.data.meta.name}"? Sistem "${s.name}" akan dihapus setelah digabung.`)) return;
+      const r = await Store.mergeFrom(s.id);
+      if (r) App.toast(`Digabung: +${r.assets} aset, +${r.lines} saluran → ${Store.data.meta.name}`);
+    };
     el.querySelector('#bSysDel').onclick = () => {
       const s = Store.system(el.querySelector('#sysDelSel').value);
       if (!s) return;

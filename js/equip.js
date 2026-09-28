@@ -234,7 +234,10 @@ const Plant = {
     const g = Store.asset(id); if (!g) return [];
     const msgs = [];
     const gi = Store.data.assets.find(a => a.type === 'GI');
-    const feeders = Store.feeders().filter(f => Store.data.lines.some(l => l.feeder === f && l.level !== 'JTR'));
+    const all = Store.feeders().filter(f => Store.data.lines.some(l => l.feeder === f && l.level !== 'JTR'));
+    // penyulang yang dilayani: pilihan di panel pembangkit; jika kosong, semua penyulang yang belum punya CB dari pembangkit lain
+    const otherCb = f => Store.data.assets.some(a => a.sub === 'cb' && a.feeder === f && Store.linesOf(a.id).some(l => { const o = Store.asset(l.from === a.id ? l.to : l.from); return o && o.id !== g.id && ASSET_TYPES[o.type]?.source; }));
+    const feeders = (g.feeders && g.feeders.length) ? all.filter(f => g.feeders.includes(f)) : all.filter(f => !otherCb(f));
     Store.mutate(d => {
       if (!g.gen) g.gen = 'PLTD';
       if (g.gkv == null) g.gkv = this.KINDS[g.gen]?.gkv ?? 0.4;

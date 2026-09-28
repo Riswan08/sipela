@@ -455,7 +455,7 @@ const GisImport = {
             <button class="btn" onclick="App.show('map')">Lihat di peta</button> <button class="btn" onclick="App.show('sld')">Lihat SLD</button></div>`;
         } else {
           const groups = new Map();
-          chosen.forEach(f => { const g = groups.get(f.sistem) || { sistem: f.sistem, ulp: SistemRef.systemsOf('').find(s => s.sistem === f.sistem)?.ulp || f.ulp, feeders: [] }; g.feeders.push(f.name); groups.set(f.sistem, g); });
+          chosen.forEach(f => { const key = SistemRef.groupOf(f.sistem); const g = groups.get(key) || { sistem: key, ulp: SistemRef.systemsOf('').find(s => s.sistem === f.sistem)?.ulp || f.ulp, feeders: [] }; g.feeders.push(f.name); groups.set(key, g); });
           const done = await this.importAll([...groups.values()], o, log);
           this.lastLog = done.map(d => `${d.sistem}: ${d.assets} aset`);
           const warnAll = done.flatMap(d => d.msgs.filter(m => m.startsWith('⚠')).map(m => `${d.sistem} — ${m}`));
